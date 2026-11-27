@@ -1,43 +1,68 @@
 package org.fossify.contacts.extensions
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import androidx.core.app.AlarmManagerCompat
 import androidx.core.content.FileProvider
+import androidx.core.graphics.ColorUtils
 import org.fossify.commons.extensions.*
 import org.fossify.commons.helpers.*
 import org.fossify.commons.models.contacts.Contact
+import org.fossify.commons.models.contacts.ContactSource
 import org.fossify.contacts.BuildConfig
 import org.fossify.contacts.R
 import org.fossify.contacts.helpers.AUTOMATIC_BACKUP_REQUEST_CODE
 import org.fossify.contacts.helpers.Config
+import org.fossify.contacts.helpers.SIGNAL
+import org.fossify.contacts.helpers.TELEGRAM
+import org.fossify.contacts.helpers.THREEMA
+import org.fossify.contacts.helpers.VIBER
 import org.fossify.contacts.helpers.VcfExporter
+import org.fossify.contacts.helpers.WHATSAPP
 import org.fossify.contacts.helpers.getNextAutoBackupTime
 import org.fossify.contacts.helpers.getPreviousAutoBackupTime
 import org.fossify.contacts.receivers.AutomaticBackupReceiver
 import org.joda.time.DateTime
 import java.io.File
+import java.util.Locale
 import java.io.FileOutputStream
 
 val Context.config: Config get() = Config.newInstance(applicationContext)
+
+fun Context.getMainSurfaceColor(): Int = ColorUtils.blendARGB(getProperBackgroundColor(), Color.BLACK, 0.05f)
+
 fun Context.getCachePhotoUri(file: File = getCachePhoto()) = FileProvider.getUriForFile(this, "${BuildConfig.APPLICATION_ID}.provider", file)
 
-@SuppressLint("UseCompatLoadingForDrawables")
-fun Context.getPackageDrawable(packageName: String): Drawable {
-    return resources.getDrawable(
-        when (packageName) {
-            TELEGRAM_PACKAGE -> R.drawable.ic_telegram_rect_vector
-            SIGNAL_PACKAGE -> R.drawable.ic_signal_rect_vector
-            WHATSAPP_PACKAGE -> R.drawable.ic_whatsapp_rect_vector
-            VIBER_PACKAGE -> R.drawable.ic_viber_rect_vector
-            else -> R.drawable.ic_threema_rect_vector
-        }, theme
-    )
+fun Context.getPackageDrawable(packageName: String): Drawable? =
+    try {
+        packageManager.getApplicationIcon(packageName)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+
+internal fun linkedContactAppPackage(sourceId: String, publicName: String, sources: List<ContactSource>): String? {
+    val accountType = sources.firstOrNull { it.getFullIdentifier() == sourceId }?.type.orEmpty()
+    val name = publicName.lowercase(Locale.ROOT)
+    return when {
+        accountType == WHATSAPP_PACKAGE || name == WHATSAPP -> WHATSAPP_PACKAGE
+        accountType == SIGNAL_PACKAGE || name == SIGNAL -> SIGNAL_PACKAGE
+        accountType == TELEGRAM_PACKAGE || name == TELEGRAM -> TELEGRAM_PACKAGE
+        accountType == VIBER_PACKAGE || name == VIBER -> VIBER_PACKAGE
+        accountType == THREEMA_PACKAGE || name == THREEMA -> THREEMA_PACKAGE
+        else -> null
+    }
+}
+
+internal fun Context.contactSourceLabel(publicName: String): String = when {
+    publicName.isEmpty() -> getString(R.string.phone_storage)
+    publicName.equals("default", ignoreCase = true) -> getString(R.string.default_contact_source)
+    else -> publicName
 }
 
 fun Context.getAutomaticBackupIntent(): PendingIntent {

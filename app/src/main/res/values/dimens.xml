@@ -4,5 +4,8 @@
     <dimen name="contact_actions_size">48dp</dimen>
     <dimen name="contact_icons_size">40dp</dimen>
     <dimen name="dialpad_button_size">60dp</dimen>
-    <dimen name="top_contact_image_height">300dp</dimen>
+    <dimen name="contact_header_avatar_size">128dp</dimen>
+    <dimen name="contact_header_avatar_margin_top">5dp</dimen>
+    <dimen name="contact_header_avatar_margin_bottom">19dp</dimen>
+    <dimen name="contact_edit_icon_button_padding">15dp</dimen>
 </resources>

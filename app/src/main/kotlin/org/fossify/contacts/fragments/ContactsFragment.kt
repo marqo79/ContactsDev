@@ -21,11 +21,25 @@ import org.fossify.contacts.interfaces.RefreshContactsListener
 class ContactsFragment(context: Context, attributeSet: AttributeSet) : MyViewPagerFragment<MyViewPagerFragment.LetterLayout>(context, attributeSet) {
 
     private lateinit var binding: FragmentContactsBinding
+    private lateinit var sectionDecoration: ContactSectionDecoration
 
     override fun onFinishInflate() {
         super.onFinishInflate()
         binding = FragmentContactsBinding.bind(this)
         innerBinding = LetterLayout(FragmentLettersLayoutBinding.bind(binding.root))
+        sectionDecoration = ContactSectionDecoration(innerBinding.fragmentList)
+        innerBinding.fragmentList.addItemDecoration(sectionDecoration)
+    }
+
+    internal fun updateContactSections(labels: List<String>, showAlphabeticSections: Boolean) {
+        sectionDecoration.sectionTitles = buildMap {
+            labels.forEachIndexed { position, label ->
+                if ((showAlphabeticSections || label == FAVORITES_SECTION_TITLE) && (position == 0 || label != labels[position - 1])) {
+                    put(position, label.ifEmpty { "#" })
+                }
+            }
+        }
+        innerBinding.fragmentList.invalidateItemDecorations()
     }
 
     override fun fabClicked() {
@@ -45,6 +59,7 @@ class ContactsFragment(context: Context, attributeSet: AttributeSet) : MyViewPag
 
     fun setupContactsAdapter(contacts: List<Contact>) {
         setupViewVisibility(contacts.isNotEmpty())
+        sectionDecoration.applyListBackground(innerBinding.fragmentList)
         val currAdapter = innerBinding.fragmentList.adapter
 
         if (currAdapter == null || forceListRedraw) {

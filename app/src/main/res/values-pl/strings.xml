@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="edit_duplicate_phone_number">Ten numer jest już zapisany w tym kontakcie.</string>
+    <string name="edit_set_default_number">Ustaw jako domyślny numer telefonu</string>
+    <string name="edit_default_number">Domyślny numer telefonu</string>
+    <string name="contact_default_number_type">%1$s · Domyślny</string>
+    <string name="edit_add_phone_number">Dodaj numer telefonu</string>
+    <string name="edit_add_email">Dodaj e-mail</string>
+    <string name="edit_add_address">Dodaj adres</string>
+    <string name="edit_add_messenger">Dodaj komunikator</string>
+    <string name="edit_add_event">Dodaj urodziny lub inną datę</string>
+    <string name="edit_add_website">Dodaj stronę internetową</string>
+    <string name="edit_choose_groups">Wybierz grupy</string>
+    <string name="edit_remove_phone_number">Usuń numer telefonu</string>
+    <string name="edit_remove_email">Usuń e-mail</string>
+    <string name="edit_remove_event">Usuń datę</string>
+    <string name="linked_contact_apps">Połączone aplikacje</string>
+    <string name="contact_source_short">Źródło</string>
+    <string name="default_contact_source">Domyślne</string>
+    <string name="no_linked_app_actions">Ta aplikacja nie udostępnia akcji dla tego kontaktu.</string>
+    <string name="view_contact_photo">Wyświetl zdjęcie kontaktu</string>
+    <string name="block_contact_numbers">Zablokuj numery kontaktu</string>
+    <string name="unblock_contact_numbers">Odblokuj numery kontaktu</string>
+    <string name="contact_numbers_blocked">Numery zablokowane</string>
+    <string name="contact_numbers_partly_blocked">Część numerów jest zablokowana</string>
+    <string name="block_contact_numbers_confirmation">Zablokować połączenia przychodzące i SMS-y ze wszystkich numerów tego kontaktu?</string>
+    <string name="unblock_contact_numbers_confirmation">Odblokować wszystkie numery tego kontaktu?</string>
+    <string name="contact_blocking_unavailable">Aby zarządzać tutaj blokadami, ustaw zgodną wersję Telefonu Fossify jako domyślną aplikację do połączeń.</string>
+    <string name="contact_blocking_failed">Nie udało się zmienić blokady wszystkich numerów.</string>
     <string name="app_launcher_name">Kontakty</string>
     <string name="address">Adres</string>
     <string name="inserting">Dodawanie…</string>

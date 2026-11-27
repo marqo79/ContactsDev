@@ -12,12 +12,9 @@ import androidx.viewpager.widget.ViewPager
 import me.grantland.widget.AutofitHelper
 import org.fossify.commons.databases.ContactsDatabase
 import org.fossify.commons.databinding.BottomTablayoutItemBinding
-import org.fossify.commons.dialogs.ChangeViewTypeDialog
-import org.fossify.commons.dialogs.RadioGroupDialog
 import org.fossify.commons.extensions.*
 import org.fossify.commons.helpers.*
 import org.fossify.commons.models.FAQItem
-import org.fossify.commons.models.RadioItem
 import org.fossify.commons.models.Release
 import org.fossify.commons.models.contacts.Contact
 import org.fossify.contacts.BuildConfig
@@ -27,9 +24,10 @@ import org.fossify.contacts.databinding.ActivityMainBinding
 import org.fossify.contacts.dialogs.ChangeSortingDialog
 import org.fossify.contacts.dialogs.FilterContactSourcesDialog
 import org.fossify.contacts.extensions.config
+import org.fossify.contacts.extensions.getMainSurfaceColor
 import org.fossify.contacts.extensions.handleGenericContactClick
 import org.fossify.contacts.extensions.tryImportContactsFromFile
-import org.fossify.contacts.fragments.FavoritesFragment
+import org.fossify.contacts.fragments.ContactsFragment
 import org.fossify.contacts.fragments.MyViewPagerFragment
 import org.fossify.contacts.helpers.ALL_TABS_MASK
 import org.fossify.contacts.helpers.tabsList
@@ -170,11 +168,9 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
     private fun refreshMenuItems() {
         val currentFragment = getCurrentFragment()
         binding.mainMenu.requireToolbar().menu.apply {
-            findItem(R.id.sort).isVisible = currentFragment != findViewById(R.id.groups_fragment)
+            findItem(R.id.sort).isVisible = currentFragment is ContactsFragment
             findItem(R.id.filter).isVisible = currentFragment != findViewById(R.id.groups_fragment)
             findItem(R.id.dialpad).isVisible = !config.showDialpadButton
-            findItem(R.id.change_view_type).isVisible = currentFragment == findViewById(R.id.favorites_fragment)
-            findItem(R.id.column_count).isVisible = currentFragment == findViewById(R.id.favorites_fragment) && config.viewType == VIEW_TYPE_GRID
             findItem(R.id.more_apps_from_us).isVisible =
                 resources.getBoolean(org.fossify.commons.R.bool.is_google_play_build)
         }
@@ -197,12 +193,10 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
 
         binding.mainMenu.requireToolbar().setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
-                R.id.sort -> showSortingDialog(showCustomSorting = getCurrentFragment() is FavoritesFragment)
+                R.id.sort -> showSortingDialog()
                 R.id.filter -> showFilterDialog()
                 R.id.dialpad -> launchDialpad()
                 R.id.more_apps_from_us -> launchMoreAppsFromUsIntent()
-                R.id.change_view_type -> changeViewType()
-                R.id.column_count -> changeColumnCount()
                 R.id.settings -> launchSettings()
                 R.id.about -> launchAbout()
                 else -> return@setOnMenuItemClickListener false
@@ -211,31 +205,9 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
         }
     }
 
-    private fun changeViewType() {
-        ChangeViewTypeDialog(this) {
-            refreshMenuItems()
-            findViewById<FavoritesFragment>(R.id.favorites_fragment)?.updateFavouritesAdapter()
-        }
-    }
-
-    private fun changeColumnCount() {
-        val items = ArrayList<RadioItem>()
-        for (i in 1..CONTACTS_GRID_MAX_COLUMNS_COUNT) {
-            items.add(RadioItem(i, resources.getQuantityString(org.fossify.commons.R.plurals.column_counts, i, i)))
-        }
-
-        val currentColumnCount = config.contactsGridColumnCount
-        RadioGroupDialog(this, items, currentColumnCount) {
-            val newColumnCount = it as Int
-            if (currentColumnCount != newColumnCount) {
-                config.contactsGridColumnCount = newColumnCount
-                findViewById<FavoritesFragment>(R.id.favorites_fragment)?.columnCountChanged()
-            }
-        }
-    }
-
     private fun updateMenuColors() {
         binding.mainMenu.updateColors()
+        binding.mainMenu.binding.toolbarContainer.background?.applyColorFilter(getMainSurfaceColor())
     }
 
     private fun storeStateVariables() {
@@ -306,8 +278,7 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
             updateBottomTabItemColors(inactiveView, false, getDeselectedTabDrawableIds()[index])
         }
 
-        val bottomBarColor = getBottomNavigationBackgroundColor()
-        binding.mainTabsHolder.setBackgroundColor(bottomBarColor)
+        binding.mainTabsHolder.setBackgroundColor(getMainSurfaceColor())
     }
 
     private fun getInactiveTabIndexes(activeIndex: Int) = (0 until binding.mainTabsHolder.tabCount).filter { it != activeIndex }
@@ -427,8 +398,8 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
         binding.mainTabsHolder.beGoneIf(binding.mainTabsHolder.tabCount == 1)
     }
 
-    private fun showSortingDialog(showCustomSorting: Boolean) {
-        ChangeSortingDialog(this, showCustomSorting) {
+    private fun showSortingDialog() {
+        ChangeSortingDialog(this, showCustomSorting = false) {
             refreshContacts(TAB_CONTACTS or TAB_FAVORITES)
         }
     }
@@ -493,7 +464,7 @@ class MainActivity : SimpleActivity(), RefreshContactsListener {
                 return@getContacts
             }
 
-            if (refreshTabsMask and TAB_CONTACTS != 0) {
+            if (refreshTabsMask and (TAB_CONTACTS or TAB_FAVORITES) != 0) {
                 findViewById<MyViewPagerFragment<*>>(R.id.contacts_fragment)?.apply {
                     skipHashComparing = true
                     refreshContacts(contacts)

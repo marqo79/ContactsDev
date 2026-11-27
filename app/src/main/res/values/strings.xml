@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="edit_duplicate_phone_number">This number is already on the contact.</string>
+    <string name="edit_set_default_number">Set as default phone number</string>
+    <string name="edit_default_number">Default phone number</string>
+    <string name="contact_default_number_type">%1$s · Default</string>
+    <string name="edit_add_phone_number">Add phone number</string>
+    <string name="edit_add_email">Add email</string>
+    <string name="edit_add_address">Add address</string>
+    <string name="edit_add_messenger">Add messenger</string>
+    <string name="edit_add_event">Add birthday or other date</string>
+    <string name="edit_add_website">Add website</string>
+    <string name="edit_choose_groups">Choose groups</string>
+    <string name="edit_remove_phone_number">Remove phone number</string>
+    <string name="edit_remove_email">Remove email</string>
+    <string name="edit_remove_event">Remove date</string>
+    <string name="linked_contact_apps">Connected apps</string>
+    <string name="contact_source_short">Source</string>
+    <string name="default_contact_source">Default</string>
+    <string name="no_linked_app_actions">No actions are available for this app and contact.</string>
+    <string name="view_contact_photo">View contact photo</string>
+    <string name="block_contact_numbers">Block contact numbers</string>
+    <string name="unblock_contact_numbers">Unblock contact numbers</string>
+    <string name="contact_numbers_blocked">Blocked numbers</string>
+    <string name="contact_numbers_partly_blocked">Some numbers are blocked</string>
+    <string name="block_contact_numbers_confirmation">Block incoming calls and SMS from all numbers on this contact?</string>
+    <string name="unblock_contact_numbers_confirmation">Unblock all numbers on this contact?</string>
+    <string name="contact_blocking_unavailable">Use a compatible version of Fossify Phone as the default phone app to manage blocked numbers here.</string>
+    <string name="contact_blocking_failed">Could not update all blocked numbers.</string>
     <string name="app_launcher_name">Contacts</string>
     <string name="address">Address</string>
     <string name="street">Street</string>

@@ -3,13 +3,16 @@
     android:id="@+id/contact_email_holder"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingEnd="@dimen/activity_margin">
+    android:layout_marginBottom="4dp"
+    android:minHeight="@dimen/contact_actions_size"
+    android:paddingEnd="4dp">
 
     <org.fossify.commons.views.MyEditText
         android:id="@+id/contact_email"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_centerVertical="true"
+        android:layout_marginEnd="4dp"
         android:layout_toStartOf="@+id/contact_email_type"
         android:hint="@string/email"
         android:inputType="textEmailAddress"
@@ -23,15 +26,17 @@
         android:id="@+id/contact_email_type"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignTop="@+id/contact_email"
-        android:layout_alignBottom="@+id/contact_email"
-        android:layout_alignParentEnd="true"
+        android:layout_toStartOf="@+id/contact_email_remove"
         android:layout_centerVertical="true"
         android:background="?attr/selectableItemBackground"
         android:gravity="center"
-        android:paddingStart="@dimen/medium_margin"
-        android:paddingEnd="@dimen/medium_margin"
+        android:paddingHorizontal="4dp"
         android:text="@string/home"
-        android:textSize="@dimen/bigger_text_size" />
+        android:textSize="14sp" />
+
+    <ImageView
+        android:id="@id/contact_email_remove"
+        style="@style/ContactEditRemoveAction"
+        android:contentDescription="@string/edit_remove_email" />
 
 </RelativeLayout>

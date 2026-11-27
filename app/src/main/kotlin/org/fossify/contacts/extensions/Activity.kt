@@ -13,6 +13,7 @@ import org.fossify.commons.extensions.hideKeyboard
 import org.fossify.commons.extensions.launchActivityIntent
 import org.fossify.commons.extensions.sharePathIntent
 import org.fossify.commons.extensions.showErrorToast
+import org.fossify.commons.extensions.telecomManager
 import org.fossify.commons.extensions.toFileDirItem
 import org.fossify.commons.extensions.toast
 import org.fossify.commons.extensions.tryInitiateCall
@@ -41,6 +42,21 @@ fun SimpleActivity.startCallIntent(recipient: String) {
         val action = if (it) Intent.ACTION_CALL else Intent.ACTION_DIAL
         Intent(action).apply {
             data = Uri.fromParts("tel", recipient, null)
+            if (action == Intent.ACTION_CALL) {
+                val defaultDialer = telecomManager.defaultDialerPackage
+                if (defaultDialer == "org.fossify.phone" ||
+                    defaultDialer == "org.fossify.phone.debug" ||
+                    (BuildConfig.DEBUG && defaultDialer == "org.fossify.phone.dev")
+                ) {
+                    // Deliver the picker request directly to Fossify Phone.
+                    setPackage(defaultDialer)
+                    if (resolveActivity(packageManager) != null) {
+                        putExtra("org.fossify.phone.extra.SHOW_SIM_PICKER", true)
+                    } else {
+                        setPackage(null)
+                    }
+                }
+            }
             launchActivityIntent(this)
         }
     }
@@ -107,12 +123,15 @@ fun SimpleActivity.handleGenericContactClick(contact: Contact) {
 
 fun SimpleActivity.callContact(contact: Contact) {
     hideKeyboard()
-    if (contact.phoneNumbers.isNotEmpty()) {
-        tryInitiateCall(contact) { startCallIntent(it) }
+    val number = contact.defaultPhoneNumber()
+    if (number != null) {
+        tryInitiateCall(contact.copy(phoneNumbers = arrayListOf(number))) { startCallIntent(it) }
     } else {
         toast(org.fossify.commons.R.string.no_phone_number_found)
     }
 }
+
+internal fun Contact.defaultPhoneNumber() = phoneNumbers.firstOrNull { it.isPrimary } ?: phoneNumbers.firstOrNull()
 
 fun Activity.viewContact(contact: Contact) {
     hideKeyboard()
@@ -129,17 +148,19 @@ fun Activity.editContact(contact: Contact, isMergedDuplicate: Boolean) {
     } else {
         ContactsHelper(this).getContactSources { contactSources ->
             getDuplicateContacts(contact, true) { contacts ->
-                if (contacts.size == 1) {
+                val regularContacts = contacts.filter { entry ->
+                    val sourceName = getPublicContactSourceSync(entry.source, contactSources)
+                    linkedContactAppPackage(entry.source, sourceName, contactSources) == null
+                }
+                val editCandidates = regularContacts.ifEmpty { contacts }
+                if (editCandidates.size == 1) {
                     runOnUiThread {
-                        editContact(contacts.first())
+                        editContact(editCandidates.first())
                     }
                 } else {
-                    val items = ArrayList(contacts.mapIndexed { index, contact ->
-                        var source = getPublicContactSourceSync(contact.source, contactSources)
-                        if (source == "") {
-                            source = getString(R.string.phone_storage)
-                        }
-                        RadioItem(index, source, contact)
+                    val items = ArrayList(editCandidates.mapIndexed { index, entry ->
+                        val source = getPublicContactSourceSync(entry.source, contactSources)
+                        RadioItem(index, contactSourceLabel(source), entry)
                     }.sortedBy { it.title })
 
                     runOnUiThread {

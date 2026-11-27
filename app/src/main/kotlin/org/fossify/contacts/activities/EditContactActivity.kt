@@ -5,7 +5,9 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ContentValues
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.drawable.StateListDrawable
 import android.media.AudioManager
 import android.media.RingtoneManager
 import android.net.Uri
@@ -20,12 +22,20 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
 import android.provider.ContactsContract.CommonDataKinds.Website
 import android.provider.MediaStore
 import android.telephony.PhoneNumberUtils
+import android.util.TypedValue
 import android.view.WindowManager
+import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.children
+import androidx.core.view.updatePaddingRelative
 import androidx.core.widget.doAfterTextChanged
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.MaterialColors
+import me.grantland.widget.AutofitHelper
 import org.fossify.commons.dialogs.ConfirmationAdvancedDialog
 import org.fossify.commons.dialogs.RadioGroupDialog
 import org.fossify.commons.dialogs.SelectAlarmSoundDialog
@@ -38,6 +48,7 @@ import org.fossify.commons.extensions.checkAppSideloading
 import org.fossify.commons.extensions.getCachePhoto
 import org.fossify.commons.extensions.getContactPublicUri
 import org.fossify.commons.extensions.getContactUriRawId
+import org.fossify.commons.extensions.getContrastColor
 import org.fossify.commons.extensions.getDateTimeFromDateString
 import org.fossify.commons.extensions.getDefaultAlarmSound
 import org.fossify.commons.extensions.getEmptyContact
@@ -123,6 +134,7 @@ import org.fossify.contacts.dialogs.ManageVisibleFieldsDialog
 import org.fossify.contacts.dialogs.MyDatePickerDialog
 import org.fossify.contacts.dialogs.SelectGroupsDialog
 import org.fossify.contacts.extensions.config
+import org.fossify.contacts.extensions.contactSourceLabel
 import org.fossify.contacts.extensions.getCachePhotoUri
 import org.fossify.contacts.extensions.showContactSourcePicker
 import org.fossify.contacts.helpers.ADD_NEW_CONTACT_NUMBER
@@ -205,7 +217,7 @@ class EditContactActivity : ContactActivity() {
         if (resultCode == RESULT_OK) {
             when (requestCode) {
                 INTENT_TAKE_PHOTO, INTENT_CHOOSE_PHOTO -> startCropPhotoIntent(lastPhotoIntentUri, resultData?.data)
-                INTENT_CROP_PHOTO -> updateContactPhoto(lastPhotoIntentUri.toString(), binding.contactPhoto, binding.contactPhotoBottomShadow)
+                INTENT_CROP_PHOTO -> updateContactPhoto(lastPhotoIntentUri.toString(), binding.contactPhoto)
             }
         }
     }
@@ -293,9 +305,8 @@ class EditContactActivity : ContactActivity() {
 
         if (contact!!.photoUri.isEmpty() && contact!!.photo == null) {
             showPhotoPlaceholder(binding.contactPhoto)
-            binding.contactPhotoBottomShadow.beGone()
         } else {
-            updateContactPhoto(contact!!.photoUri, binding.contactPhoto, binding.contactPhotoBottomShadow, contact!!.photo)
+            updateContactPhoto(contact!!.photoUri, binding.contactPhoto, contact!!.photo)
         }
 
         val textColor = getProperTextColor()
@@ -311,7 +322,9 @@ class EditContactActivity : ContactActivity() {
             binding.contactOrganizationImage,
             binding.contactWebsitesImage,
             binding.contactGroupsImage,
-            binding.contactSourceImage
+            binding.contactSourceImage,
+            binding.contactChangePhoto,
+            binding.contactToggleFavorite
         ).forEach {
             it.applyColorFilter(textColor)
         }
@@ -321,19 +334,7 @@ class EditContactActivity : ContactActivity() {
             binding.contactNumbersAddNew, binding.contactEmailsAddNew, binding.contactAddressesAddNew, binding.contactImsAddNew, binding.contactEventsAddNew,
             binding.contactWebsitesAddNew, binding.contactGroupsAddNew
         ).forEach {
-            it.applyColorFilter(properPrimaryColor)
-        }
-
-        arrayOf(
-            binding.contactNumbersAddNew.background,
-            binding.contactEmailsAddNew.background,
-            binding.contactAddressesAddNew.background,
-            binding.contactImsAddNew.background,
-            binding.contactEventsAddNew.background,
-            binding.contactWebsitesAddNew.background,
-            binding.contactGroupsAddNew.background
-        ).forEach {
-            it.applyColorFilter(textColor)
+            it.compoundDrawableTintList = ColorStateList.valueOf(properPrimaryColor)
         }
 
         binding.contactToggleFavorite.setOnClickListener { toggleFavorite() }
@@ -364,6 +365,7 @@ class EditContactActivity : ContactActivity() {
         }
 
         updateTextColors(binding.contactScrollview)
+        styleEditableFields(binding.contactScrollview)
         numberViewToColor?.setTextColor(properPrimaryColor)
         emailViewToColor?.setTextColor(properPrimaryColor)
         wasActivityInitialized = true
@@ -404,12 +406,18 @@ class EditContactActivity : ContactActivity() {
     }
 
     private fun setupMenu() {
+        setupContactToolbarColors(binding.contactToolbar)
+        val buttonColor = getProperPrimaryColor()
+        val buttonTint = ColorStateList.valueOf(buttonColor)
+        val onButtonColor = buttonColor.getContrastColor()
+        val saveAction = binding.contactToolbar.menu.findItem(R.id.save).actionView as MaterialButton
+        saveAction.backgroundTintList = buttonTint
+        saveAction.iconTint = ColorStateList.valueOf(onButtonColor)
+        saveAction.setOnClickListener { saveContact() }
+        binding.contactSaveBottom.backgroundTintList = buttonTint
+        binding.contactSaveBottom.setTextColor(onButtonColor)
+        binding.contactSaveBottom.setOnClickListener { saveContact() }
         binding.contactToolbar.menu.apply {
-            findItem(R.id.save).setOnMenuItemClickListener {
-                saveContact()
-                true
-            }
-
             findItem(R.id.share).setOnMenuItemClickListener {
                 shareContact(contact!!)
                 true
@@ -623,32 +631,45 @@ class EditContactActivity : ContactActivity() {
         val numbersCount = binding.contactNumbersHolder.childCount
         for (i in 0 until numbersCount) {
             val toggleIcon = ItemEditPhoneNumberBinding.bind(binding.contactNumbersHolder.getChildAt(i)).defaultToggleIcon
-            if (toggleIcon != selected) {
-                toggleIcon.tag = 0
-            }
+            toggleIcon.tag = if (toggleIcon == selected) 1 else 0
         }
-
-        selected.tag = if (selected.tag == 1) 0 else 1
 
         initNumberHolders()
     }
 
     private fun initNumberHolders() {
-        val numbersCount = binding.contactNumbersHolder.childCount
-
-        if (numbersCount == 1) {
-            ItemEditPhoneNumberBinding.bind(binding.contactNumbersHolder.getChildAt(0)).defaultToggleIcon.beGone()
-            return
+        val rows = (0 until binding.contactNumbersHolder.childCount).map {
+            ItemEditPhoneNumberBinding.bind(binding.contactNumbersHolder.getChildAt(it))
         }
+        val populatedRows = rows.filter { !it.contactNumber.text.isNullOrBlank() }
+        val defaultRow = populatedRows.firstOrNull { it.defaultToggleIcon.tag == 1 }
+            ?: populatedRows.firstOrNull()
 
-        for (i in 0 until numbersCount) {
-            val toggleIcon = ItemEditPhoneNumberBinding.bind(binding.contactNumbersHolder.getChildAt(i)).defaultToggleIcon
-            val isPrimary = toggleIcon.tag == 1
+        for (number in rows) {
+            val toggleIcon = number.defaultToggleIcon
+            if (!toggleIcon.hasOnClickListeners()) {
+                setupFieldRemoval(number.contactNumberRemove, number.root, ::initNumberHolders)
+                toggleIcon.setOnClickListener { setDefaultNumber(toggleIcon) }
+                AutofitHelper.create(number.contactNumber).setMinTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f)
+                AutofitHelper.create(number.contactNumberType)
+                    .setMinTextSize(TypedValue.COMPLEX_UNIT_DIP, 9f)
+                    .setMaxTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f)
+                var hasNumber = !number.contactNumber.text.isNullOrBlank()
+                number.contactNumber.doAfterTextChanged {
+                    val hasNumberNow = !it.isNullOrBlank()
+                    if (hasNumberNow != hasNumber) {
+                        hasNumber = hasNumberNow
+                        initNumberHolders()
+                    }
+                }
+            }
+
+            val isPrimary = number === defaultRow
 
             val drawableId = if (isPrimary) {
-                org.fossify.commons.R.drawable.ic_star_vector
+                R.drawable.ic_default_number_checked
             } else {
-                org.fossify.commons.R.drawable.ic_star_outline_vector
+                R.drawable.ic_default_number_unchecked
             }
 
             val drawable = ContextCompat.getDrawable(this@EditContactActivity, drawableId)
@@ -658,10 +679,8 @@ class EditContactActivity : ContactActivity() {
             }
 
             toggleIcon.setImageDrawable(drawable)
-            toggleIcon.beVisible()
-            toggleIcon.setOnClickListener {
-                setDefaultNumber(toggleIcon)
-            }
+            toggleIcon.isEnabled = number in populatedRows
+            toggleIcon.contentDescription = getString(if (isPrimary) R.string.edit_default_number else R.string.edit_set_default_number)
         }
     }
 
@@ -679,6 +698,7 @@ class EditContactActivity : ContactActivity() {
             emailHolder.apply {
                 contactEmail.setText(email.value)
                 setupEmailTypePicker(contactEmailType, email.type, email.label)
+                setupFieldRemoval(contactEmailRemove, root)
                 if (highlightLastEmail && index == contact!!.emails.size - 1) {
                     emailViewToColor = contactEmail
                 }
@@ -817,22 +837,13 @@ class EditContactActivity : ContactActivity() {
             }
 
             eventHolder.apply {
-                val contactEvent = contactEvent.apply {
+                contactEvent.apply {
                     event.value.getDateTimeFromDateString(true, this)
                     tag = event.value
                     alpha = 1f
                 }
 
                 setupEventTypePicker(this, event.type)
-
-                contactEventRemove.apply {
-                    beVisible()
-                    applyColorFilter(getProperPrimaryColor())
-                    background.applyColorFilter(getProperTextColor())
-                    setOnClickListener {
-                        resetContactEvent(contactEvent, this)
-                    }
-                }
             }
         }
     }
@@ -893,7 +904,7 @@ class EditContactActivity : ContactActivity() {
     private fun setupContactSource() {
         originalContactSource = contact!!.source
         getPublicContactSource(contact!!.source) {
-            binding.contactSource.text = if (it == "") getString(R.string.phone_storage) else it
+            binding.contactSource.text = contactSourceLabel(it)
         }
     }
 
@@ -901,7 +912,7 @@ class EditContactActivity : ContactActivity() {
         originalContactSource = if (hasContactPermissions()) config.lastUsedContactSource else SMT_PRIVATE
         contact = getEmptyContact()
         getPublicContactSource(contact!!.source) {
-            binding.contactSource.text = if (it == "") getString(R.string.phone_storage) else it
+            binding.contactSource.text = contactSourceLabel(it)
         }
 
         // if the last used contact source is not available anymore, use the first available one. Could happen at ejecting SIM card
@@ -911,7 +922,7 @@ class EditContactActivity : ContactActivity() {
                 originalContactSource = sourceNames.first()
                 contact?.source = originalContactSource
                 getPublicContactSource(contact!!.source) {
-                    binding.contactSource.text = if (it == "") getString(R.string.phone_storage) else it
+                    binding.contactSource.text = contactSourceLabel(it)
                 }
             }
         }
@@ -925,30 +936,7 @@ class EditContactActivity : ContactActivity() {
             }
         }
 
-        if (contact!!.emails.isEmpty()) {
-            val emailHolder = ItemEditEmailBinding.bind(binding.contactEmailsHolder.getChildAt(0))
-            emailHolder.contactEmailType.apply {
-                setupEmailTypePicker(this, DEFAULT_EMAIL_TYPE, "")
-            }
-        }
-
-        if (contact!!.addresses.isEmpty()) {
-            addNewAddressField()
-        }
-
-        if (contact!!.IMs.isEmpty()) {
-            val IMHolder = ItemEditImBinding.bind(binding.contactImsHolder.getChildAt(0))
-            IMHolder.contactImType.apply {
-                setupIMTypePicker(this, DEFAULT_IM_TYPE, "")
-            }
-        }
-
-        if (contact!!.events.isEmpty()) {
-            val eventHolder = ItemEventBinding.bind(binding.contactEventsHolder.getChildAt(0))
-            eventHolder.apply {
-                setupEventTypePicker(this)
-            }
-        }
+        initNumberHolders()
 
         if (contact!!.groups.isEmpty()) {
             val groupsHolder = ItemEditGroupBinding.bind(binding.contactGroupsHolder.getChildAt(0))
@@ -961,6 +949,7 @@ class EditContactActivity : ContactActivity() {
     private fun setupPhoneNumberTypePicker(numberTypeField: TextView, type: Int, label: String) {
         numberTypeField.apply {
             text = getPhoneNumberTypeText(type, label)
+            addTypePickerChevron(this)
             setOnClickListener {
                 showNumberTypePicker(it as TextView)
             }
@@ -970,6 +959,7 @@ class EditContactActivity : ContactActivity() {
     private fun setupEmailTypePicker(emailTypeField: TextView, type: Int, label: String) {
         emailTypeField.apply {
             text = getEmailTypeText(type, label)
+            addTypePickerChevron(this)
             setOnClickListener {
                 showEmailTypePicker(it as TextView)
             }
@@ -979,6 +969,7 @@ class EditContactActivity : ContactActivity() {
     private fun setupAddressTypePicker(addressTypeField: TextView, type: Int, label: String) {
         addressTypeField.apply {
             text = getAddressTypeText(type, label)
+            addTypePickerChevron(this)
             setOnClickListener {
                 showAddressTypePicker(it as TextView)
             }
@@ -988,6 +979,7 @@ class EditContactActivity : ContactActivity() {
     private fun setupIMTypePicker(imTypeField: TextView, type: Int, label: String) {
         imTypeField.apply {
             text = getIMTypeText(type, label)
+            addTypePickerChevron(this)
             setOnClickListener {
                 showIMTypePicker(it as TextView)
             }
@@ -997,12 +989,14 @@ class EditContactActivity : ContactActivity() {
     private fun setupEventTypePicker(eventHolder: ItemEventBinding, type: Int = DEFAULT_EVENT_TYPE) {
         eventHolder.contactEventType.apply {
             setText(getEventTextId(type))
+            addTypePickerChevron(this)
             setOnClickListener {
                 showEventTypePicker(it as TextView)
             }
         }
 
         val eventField = eventHolder.contactEvent
+        styleEditableField(eventField)
         eventField.setOnClickListener {
             MyDatePickerDialog(this, eventField.tag?.toString() ?: "") { dateTag ->
                 eventField.apply {
@@ -1013,13 +1007,7 @@ class EditContactActivity : ContactActivity() {
             }
         }
 
-        eventHolder.contactEventRemove.apply {
-            applyColorFilter(getProperPrimaryColor())
-            background.applyColorFilter(getProperTextColor())
-            setOnClickListener {
-                resetContactEvent(eventField, this@apply)
-            }
-        }
+        setupFieldRemoval(eventHolder.contactEventRemove, eventHolder.root)
     }
 
     private fun setupGroupsPicker(groupTitleField: TextView, group: Group? = null) {
@@ -1032,13 +1020,41 @@ class EditContactActivity : ContactActivity() {
         }
     }
 
-    private fun resetContactEvent(contactEvent: TextView, removeContactEventButton: ImageView) {
-        contactEvent.apply {
-            text = getString(org.fossify.commons.R.string.unknown)
-            tag = ""
-            alpha = 0.5f
+    private fun setupFieldRemoval(button: ImageView, row: View, onRemoved: () -> Unit = {}) {
+        button.applyColorFilter(MaterialColors.getColor(this, android.R.attr.colorError, 0xFFB3261E.toInt()))
+        button.setOnClickListener {
+            (row.parent as? ViewGroup)?.removeView(row)
+            onRemoved()
         }
-        removeContactEventButton.beGone()
+    }
+
+    private fun styleEditableFields(view: View) {
+        when (view) {
+            is EditText -> styleEditableField(view)
+            is ViewGroup -> view.children.forEach(::styleEditableFields)
+        }
+    }
+
+    private fun styleEditableField(field: TextView) {
+        val density = resources.displayMetrics.density
+        val horizontalPadding = ((if (field.id == R.id.contact_number) 8 else 12) * density).toInt()
+        val verticalPadding = (8 * density).toInt()
+        field.minHeight = resources.getDimensionPixelSize(R.dimen.contact_actions_size)
+        field.background = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), contactCardBackground(getProperPrimaryColor()))
+            addState(intArrayOf(), contactCardBackground())
+        }
+        field.updatePaddingRelative(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
+    }
+
+    private fun addTypePickerChevron(field: TextView) {
+        val size = (14 * resources.displayMetrics.density).toInt()
+        val arrow = ContextCompat.getDrawable(this, org.fossify.commons.R.drawable.ic_chevron_down_vector)?.mutate()
+        arrow?.setTint(getProperTextColor())
+        arrow?.setBounds(0, 0, size, size)
+        field.minHeight = resources.getDimensionPixelSize(R.dimen.contact_actions_size)
+        field.compoundDrawablePadding = (3 * resources.displayMetrics.density).toInt()
+        field.setCompoundDrawablesRelative(null, null, arrow, null)
     }
 
     private fun removeGroup(id: Long) {
@@ -1161,13 +1177,17 @@ class EditContactActivity : ContactActivity() {
         showContactSourcePicker(contact!!.source) {
             contact!!.source = if (it == getString(R.string.phone_storage_hidden)) SMT_PRIVATE else it
             getPublicContactSource(it) {
-                binding.contactSource.text = if (it == "") getString(R.string.phone_storage) else it
+                binding.contactSource.text = contactSourceLabel(it)
             }
         }
     }
 
     private fun saveContact() {
         if (isSaving || contact == null) {
+            return
+        }
+
+        if (hasNewDuplicatePhoneNumber()) {
             return
         }
 
@@ -1191,6 +1211,9 @@ class EditContactActivity : ContactActivity() {
         }
 
         val contactValues = fillContactValues()
+        if (contactValues.phoneNumbers.none { it.isPrimary }) {
+            contactValues.phoneNumbers.firstOrNull()?.isPrimary = true
+        }
 
         val oldPhotoUri = contact!!.photoUri
         val oldPrimary = contact!!.phoneNumbers.find { it.isPrimary }
@@ -1198,6 +1221,7 @@ class EditContactActivity : ContactActivity() {
         val primaryState = Pair(oldPrimary, newPrimary)
 
         contact = contactValues
+        isSaving = true
 
         ensureBackgroundThread {
             config.lastUsedContactSource = contact!!.source
@@ -1210,6 +1234,26 @@ class EditContactActivity : ContactActivity() {
                 }
             }
         }
+    }
+
+    private fun hasNewDuplicatePhoneNumber(): Boolean {
+        val savedCounts = contact!!.phoneNumbers.groupingBy { phoneNumberComparisonKey(it.value) }.eachCount()
+        val enteredCounts = mutableMapOf<String, Int>()
+        for (view in binding.contactNumbersHolder.children) {
+            val field = ItemEditPhoneNumberBinding.bind(view).contactNumber
+            val value = field.text.toString()
+            if (value.isBlank()) continue
+
+            val key = phoneNumberComparisonKey(value)
+            val count = enteredCounts.getOrDefault(key, 0) + 1
+            enteredCounts[key] = count
+            if (count > savedCounts.getOrDefault(key, 1)) {
+                field.requestFocus()
+                field.error = getString(R.string.edit_duplicate_phone_number)
+                return true
+            }
+        }
+        return false
     }
 
     private fun fillContactValues(): Contact {
@@ -1249,11 +1293,11 @@ class EditContactActivity : ContactActivity() {
         val numbersCount = binding.contactNumbersHolder.childCount
         for (i in 0 until numbersCount) {
             val numberHolder = ItemEditPhoneNumberBinding.bind(binding.contactNumbersHolder.getChildAt(i))
-            val number = numberHolder.contactNumber.value
+            val number = numberHolder.contactNumber.text.toString()
             val numberType = getPhoneNumberTypeId(numberHolder.contactNumberType.value)
             val numberLabel = if (numberType == Phone.TYPE_CUSTOM) numberHolder.contactNumberType.value else ""
 
-            if (number.isNotEmpty()) {
+            if (number.isNotBlank()) {
                 var normalizedNumber = number.normalizePhoneNumber()
 
                 // fix a glitch when onBackPressed the app thinks that a number changed because we fetched
@@ -1379,7 +1423,6 @@ class EditContactActivity : ContactActivity() {
     }
 
     private fun insertNewContact(deleteCurrentContact: Boolean) {
-        isSaving = true
         if (!deleteCurrentContact) {
             toast(R.string.inserting)
         }
@@ -1398,12 +1441,12 @@ class EditContactActivity : ContactActivity() {
                 finish()
             }
         } else {
+            runOnUiThread { isSaving = false }
             toast(org.fossify.commons.R.string.unknown_error_occurred)
         }
     }
 
     private fun updateContact(photoUpdateStatus: Int, primaryState: Pair<PhoneNumber?, PhoneNumber?>) {
-        isSaving = true
         if (ContactsHelper(this@EditContactActivity).updateContact(contact!!, photoUpdateStatus)) {
             val status = getPrimaryNumberStatus(primaryState.first, primaryState.second)
             if (status != PrimaryNumberStatus.UNCHANGED) {
@@ -1418,6 +1461,7 @@ class EditContactActivity : ContactActivity() {
                 finish()
             }
         } else {
+            runOnUiThread { isSaving = false }
             toast(org.fossify.commons.R.string.unknown_error_occurred)
         }
     }
@@ -1486,6 +1530,7 @@ class EditContactActivity : ContactActivity() {
     private fun addNewPhoneNumberField() {
         val numberHolder = ItemEditPhoneNumberBinding.inflate(layoutInflater, binding.contactNumbersHolder, false)
         updateTextColors(numberHolder.root)
+        styleEditableFields(numberHolder.root)
         setupPhoneNumberTypePicker(numberHolder.contactNumberType, DEFAULT_PHONE_NUMBER_TYPE, "")
         binding.contactNumbersHolder.addView(numberHolder.root)
         binding.contactNumbersHolder.onGlobalLayout {
@@ -1499,8 +1544,10 @@ class EditContactActivity : ContactActivity() {
     private fun addNewEmailField() {
         val emailHolder = ItemEditEmailBinding.inflate(layoutInflater, binding.contactEmailsHolder, false)
         updateTextColors(emailHolder.root)
+        styleEditableFields(emailHolder.root)
         setupEmailTypePicker(emailHolder.contactEmailType, DEFAULT_EMAIL_TYPE, "")
         binding.contactEmailsHolder.addView(emailHolder.root)
+        setupFieldRemoval(emailHolder.contactEmailRemove, emailHolder.root)
         binding.contactEmailsHolder.onGlobalLayout {
             emailHolder.contactEmail.requestFocus()
             showKeyboard(emailHolder.contactEmail)
@@ -1512,6 +1559,7 @@ class EditContactActivity : ContactActivity() {
             val structutedAddressHolder = ItemEditStructuredAddressBinding.inflate(layoutInflater,
                 binding.contactAddressesHolder, false)
             updateTextColors(structutedAddressHolder.root)
+            styleEditableFields(structutedAddressHolder.root)
             setupAddressTypePicker(structutedAddressHolder.contactStructuredAddressType, DEFAULT_ADDRESS_TYPE, "")
             binding.contactAddressesHolder.addView(structutedAddressHolder.root)
             binding.contactAddressesHolder.onGlobalLayout {
@@ -1521,6 +1569,7 @@ class EditContactActivity : ContactActivity() {
         } else {
             val addressHolder = ItemEditAddressBinding.inflate(layoutInflater, binding.contactAddressesHolder, false)
             updateTextColors(addressHolder.root)
+            styleEditableFields(addressHolder.root)
             setupAddressTypePicker(addressHolder.contactAddressType, DEFAULT_ADDRESS_TYPE, "")
             binding.contactAddressesHolder.addView(addressHolder.root)
             binding.contactAddressesHolder.onGlobalLayout {
@@ -1533,6 +1582,7 @@ class EditContactActivity : ContactActivity() {
     private fun addNewIMField() {
         val IMHolder = ItemEditImBinding.inflate(layoutInflater, binding.contactImsHolder, false)
         updateTextColors(IMHolder.root)
+        styleEditableFields(IMHolder.root)
         setupIMTypePicker(IMHolder.contactImType, DEFAULT_IM_TYPE, "")
         binding.contactImsHolder.addView(IMHolder.root)
         binding.contactImsHolder.onGlobalLayout {
@@ -1546,6 +1596,7 @@ class EditContactActivity : ContactActivity() {
         updateTextColors(eventHolder.root)
         setupEventTypePicker(eventHolder)
         binding.contactEventsHolder.addView(eventHolder.root)
+        eventHolder.contactEvent.performClick()
     }
 
     private fun toggleFavorite() {
@@ -1561,6 +1612,7 @@ class EditContactActivity : ContactActivity() {
     private fun addNewWebsiteField() {
         val websitesHolder = ItemEditWebsiteBinding.inflate(layoutInflater, binding.contactWebsitesHolder, false)
         updateTextColors(websitesHolder.root)
+        styleEditableFields(websitesHolder.root)
         binding.contactWebsitesHolder.addView(websitesHolder.root)
         binding.contactWebsitesHolder.onGlobalLayout {
             websitesHolder.contactWebsite.requestFocus()
@@ -1589,7 +1641,6 @@ class EditContactActivity : ContactActivity() {
                 CHOOSE_PHOTO -> startChoosePhotoIntent()
                 else -> {
                     showPhotoPlaceholder(binding.contactPhoto)
-                    binding.contactPhotoBottomShadow.beGone()
                 }
             }
         }

@@ -2,6 +2,43 @@
 
     <style name="AppTheme" parent="AppTheme.Base" />
 
+    <style name="TopPopupMenuYou" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:popupBackground">@drawable/popup_menu_bg_you</item>
+        <item name="android:dropDownHorizontalOffset">-10dp</item>
+        <item name="android:popupElevation">@dimen/popup_menu_elevation</item>
+    </style>
+
+
+    <style name="ContactEditAddAction">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingHorizontal">8dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:drawableStart">@drawable/ic_plus_vector</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="ContactEditRemoveAction">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_alignParentEnd">true</item>
+        <item name="android:layout_centerVertical">true</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:padding">@dimen/contact_edit_icon_button_padding</item>
+        <item name="android:src">@drawable/ic_edit_remove_field</item>
+    </style>
+
+    <style name="ContactEditFieldIcon">
+        <item name="android:layout_width">@dimen/contact_icons_size</item>
+        <item name="android:layout_height">@dimen/contact_actions_size</item>
+        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:paddingVertical">14dp</item>
+        <item name="android:scaleType">fitCenter</item>
+    </style>
+
     <style name="roundedImageView">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">50%</item>

@@ -11,6 +11,7 @@ import android.provider.ContactsContract
 import android.view.View
 import android.view.WindowManager
 import android.widget.RelativeLayout
+import android.widget.TextView
 import androidx.core.view.isVisible
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.FitCenter
@@ -21,7 +22,6 @@ import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.SelectAlarmSoundDialog
 import org.fossify.commons.extensions.*
 import org.fossify.commons.helpers.*
-import org.fossify.commons.models.PhoneNumber
 import org.fossify.commons.models.contacts.*
 import org.fossify.contacts.R
 import org.fossify.contacts.databinding.*
@@ -39,12 +39,10 @@ class ViewContactActivity : ContactActivity() {
     private var showFields = 0
     private var fullContact: Contact? = null    // contact with all fields filled from duplicates
     private var duplicateInitialized = false
+    private var blockingRequest = 0
+    private var updatingBlockedNumbers = false
     private val mergeDuplicate: Boolean get() = config.mergeDuplicateContacts
     private val binding by viewBinding(ActivityViewContactBinding::inflate)
-
-    companion object {
-        private const val COMPARABLE_PHONE_NUMBER_LENGTH = 9
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -91,6 +89,7 @@ class ViewContactActivity : ContactActivity() {
     }
 
     private fun setupMenu() {
+        setupContactToolbarColors(binding.contactToolbar)
         binding.contactToolbar.menu.apply {
             findItem(R.id.share).setOnMenuItemClickListener {
                 if (fullContact != null) {
@@ -113,6 +112,16 @@ class ViewContactActivity : ContactActivity() {
 
             findItem(R.id.delete).setOnMenuItemClickListener {
                 deleteContactWithMergeLogic()
+                true
+            }
+
+            findItem(R.id.block_contact_numbers).setOnMenuItemClickListener {
+                confirmContactBlocking(block = true)
+                true
+            }
+
+            findItem(R.id.unblock_contact_numbers).setOnMenuItemClickListener {
+                confirmContactBlocking(block = false)
                 true
             }
 
@@ -148,7 +157,7 @@ class ViewContactActivity : ContactActivity() {
                     val lookupKey = getLookupKeyFromUri(data)
                     if (lookupKey != null) {
                         contact = ContactsHelper(this).getContactWithLookupKey(lookupKey)
-                        fullContact = contact
+                        fullContact = contact?.copy()
                         wasLookupKeyUsed = true
                     }
 
@@ -165,7 +174,7 @@ class ViewContactActivity : ContactActivity() {
 
         if (contactId != 0 && !wasLookupKeyUsed) {
             contact = ContactsHelper(this).getContactWithId(contactId, intent.getBooleanExtra(IS_PRIVATE, false))
-            fullContact = contact
+            fullContact = contact?.copy()
 
             if (contact == null) {
                 if (!wasEditLaunched) {
@@ -199,16 +208,22 @@ class ViewContactActivity : ContactActivity() {
         binding.contactStartCall.beVisibleIf(contact!!.phoneNumbers.isNotEmpty())
         binding.contactSendEmail.beVisibleIf(contact!!.emails.isNotEmpty())
 
-        if (contact!!.photoUri.isEmpty() && contact!!.photo == null) {
-            showPhotoPlaceholder(binding.contactPhoto)
-            binding.contactPhotoBottomShadow.beGone()
+        val currentContact = contact!!
+        val avatar = getContactAvatarPlaceholder()
+        val photo = currentContact.photo ?: currentContact.photoUri.takeIf { it.isNotEmpty() }
+        if (photo == null) {
+            Glide.with(this).clear(binding.contactPhoto)
+            binding.contactPhoto.setImageDrawable(avatar)
+            binding.contactPhoto.setOnClickListener(null)
+            binding.contactPhoto.isClickable = false
+            binding.contactPhoto.contentDescription = null
         } else {
-            updateContactPhoto(contact!!.photoUri, binding.contactPhoto, binding.contactPhotoBottomShadow, contact!!.photo)
+            Glide.with(this).load(photo).placeholder(avatar).error(avatar).centerCrop().into(binding.contactPhoto)
             val options = RequestOptions()
                 .transform(FitCenter(), RoundedCorners(resources.getDimension(org.fossify.commons.R.dimen.normal_margin).toInt()))
 
             Glide.with(this)
-                .load(contact!!.photo ?: currentContactPhotoPath)
+                .load(photo)
                 .apply(options)
                 .into(binding.contactPhotoBig)
 
@@ -218,6 +233,7 @@ class ViewContactActivity : ContactActivity() {
                 binding.contactPhotoBig.animate().alpha(1f).start()
             }
 
+            binding.contactPhoto.contentDescription = getString(R.string.view_contact_photo)
             binding.contactPhotoBig.setOnClickListener {
                 hideBigContactPhoto()
             }
@@ -225,15 +241,16 @@ class ViewContactActivity : ContactActivity() {
 
         val textColor = getProperTextColor()
         arrayOf(
-            binding.contactNameImage, binding.contactNumbersImage, binding.contactEmailsImage, binding.contactAddressesImage, binding.contactImsImage,
-            binding.contactEventsImage, binding.contactSourceImage, binding.contactNotesImage, binding.contactRingtoneImage, binding.contactOrganizationImage,
-            binding.contactWebsitesImage, binding.contactGroupsImage
+            binding.contactEmailsImage, binding.contactAddressesImage, binding.contactImsImage,
+            binding.contactEventsImage, binding.contactNotesImage, binding.contactRingtoneImage, binding.contactOrganizationImage,
+            binding.contactWebsitesImage, binding.contactGroupsImage, binding.contactStartCall, binding.contactSendSms,
+            binding.contactSendEmail, binding.contactToggleFavorite
         ).forEach {
             it.applyColorFilter(textColor)
         }
 
-        binding.contactSendSms.setOnClickListener { trySendSMS() }
-        binding.contactStartCall.setOnClickListener { tryInitiateCall(contact!!) { startCallIntent(it) } }
+        binding.contactSendSms.setOnClickListener { trySendSMS(fullContact) }
+        binding.contactStartCall.setOnClickListener { fullContact?.let { callContact(it) } }
         binding.contactSendEmail.setOnClickListener { trySendEmail() }
 
         binding.contactSendSms.setOnLongClickListener { toast(org.fossify.commons.R.string.send_sms); true; }
@@ -268,6 +285,7 @@ class ViewContactActivity : ContactActivity() {
         }
 
         setupPhoneNumbers()
+        refreshContactBlocking()
         setupEmails()
         setupAddresses()
         setupIMs()
@@ -279,6 +297,78 @@ class ViewContactActivity : ContactActivity() {
         setupRingtone()
         setupOrganization()
         updateTextColors(binding.contactScrollview)
+    }
+
+    private fun contactNumbersForBlocking() =
+        fullContact?.phoneNumbers.orEmpty().map { it.value.trim() }.filter { it.isNotEmpty() }.distinct()
+
+    private fun requestBlockedNumbers(method: String, numbers: List<String>): Int? {
+        val dialer = telecomManager.defaultDialerPackage
+        if (dialer != "org.fossify.phone" && dialer != "org.fossify.phone.dev") {
+            return null
+        }
+
+        return try {
+            val extras = Bundle().apply { putStringArrayList("numbers", ArrayList(numbers)) }
+            contentResolver.call(Uri.parse("content://$dialer.contactblocking"), method, null, extras)?.getInt("blocked")
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
+    private fun refreshContactBlocking() {
+        if (updatingBlockedNumbers) return
+        val numbers = contactNumbersForBlocking()
+        val request = ++blockingRequest
+        if (numbers.isEmpty()) {
+            showContactBlocking(0, 0)
+            return
+        }
+
+        ensureBackgroundThread {
+            val blocked = requestBlockedNumbers("status", numbers)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && request == blockingRequest) {
+                    showContactBlocking(numbers.size, blocked)
+                }
+            }
+        }
+    }
+
+    private fun showContactBlocking(total: Int, blocked: Int?) {
+        val count = blocked ?: 0
+        binding.contactToolbar.menu.findItem(R.id.block_contact_numbers).isVisible = count < total
+        binding.contactToolbar.menu.findItem(R.id.unblock_contact_numbers).isVisible = count > 0
+        binding.contactBlockingStatus.apply {
+            isVisible = count > 0
+            setText(if (count == total) R.string.contact_numbers_blocked else R.string.contact_numbers_partly_blocked)
+            setTextColor(getProperTextColor())
+        }
+    }
+
+    private fun confirmContactBlocking(block: Boolean) {
+        val numbers = contactNumbersForBlocking()
+        if (numbers.isEmpty() || updatingBlockedNumbers) return
+        val message = if (block) R.string.block_contact_numbers_confirmation else R.string.unblock_contact_numbers_confirmation
+        ConfirmationDialog(this, getString(message)) {
+            updatingBlockedNumbers = true
+            blockingRequest++
+            ensureBackgroundThread {
+                val blocked = requestBlockedNumbers(if (block) "block" else "unblock", numbers)
+                runOnUiThread {
+                    updatingBlockedNumbers = false
+                    if (!isFinishing && !isDestroyed) {
+                        when {
+                            blocked == null -> toast(R.string.contact_blocking_unavailable)
+                            blocked != (if (block) numbers.size else 0) -> toast(R.string.contact_blocking_failed)
+                        }
+                        refreshContactBlocking()
+                    }
+                }
+            }
+        }
     }
 
     private fun launchEditContact(contact: Contact, editExactContact: Boolean) {
@@ -335,64 +425,38 @@ class ViewContactActivity : ContactActivity() {
         binding.contactName.text = displayName
         binding.contactName.copyOnLongClick(displayName)
         binding.contactName.beVisibleIf(displayName.isNotEmpty() && !contact!!.isABusinessContact() && showNameFields)
-        binding.contactNameImage.beInvisibleIf(binding.contactName.isGone())
     }
 
     private fun setupPhoneNumbers() {
-        var phoneNumbers = contact!!.phoneNumbers.toMutableSet() as LinkedHashSet<PhoneNumber>
-
-        if (mergeDuplicate) {
-            duplicateContacts.forEach {
-                phoneNumbers.addAll(it.phoneNumbers)
-            }
-        }
-
-        if (duplicateInitialized) {
-            val contactDefaultsNumbers = contact!!.phoneNumbers.filter { it.isPrimary }
-            val duplicateContactsDefaultNumbers = duplicateContacts.flatMap { it.phoneNumbers }.filter { it.isPrimary }
-            val defaultNumbers = (contactDefaultsNumbers + duplicateContactsDefaultNumbers).toSet()
-
-            if (defaultNumbers.size > 1 && defaultNumbers.distinctBy { it.normalizedNumber }.size > 1) {
-                phoneNumbers.forEach { it.isPrimary = false }
-            } else if (defaultNumbers.size == 1) {
-                if (mergeDuplicate) {
-                    val defaultNumber = defaultNumbers.first()
-                    val candidate = phoneNumbers.find { it.normalizedNumber == defaultNumber.normalizedNumber && !it.isPrimary }
-                    candidate?.isPrimary = true
-                } else {
-                    duplicateContactsDefaultNumbers.forEach { defaultNumber ->
-                        val candidate = phoneNumbers.find { it.normalizedNumber == defaultNumber.normalizedNumber && !it.isPrimary }
-                        candidate?.isPrimary = true
-                    }
-                }
-            }
-        }
-
-        phoneNumbers = phoneNumbers.distinctBy {
-            if (it.normalizedNumber.length >= COMPARABLE_PHONE_NUMBER_LENGTH) {
-                it.normalizedNumber.substring(it.normalizedNumber.length - COMPARABLE_PHONE_NUMBER_LENGTH)
-            } else {
-                it.normalizedNumber
-            }
-        }.toMutableSet() as LinkedHashSet<PhoneNumber>
-
-        phoneNumbers = phoneNumbers.sortedBy { it.type }.toMutableSet() as LinkedHashSet<PhoneNumber>
-        fullContact!!.phoneNumbers = phoneNumbers.toMutableList() as ArrayList<PhoneNumber>
+        val ownNumbers = contact!!.phoneNumbers
+        val linkedNumbers = duplicateContacts.flatMap { it.phoneNumbers }
+        val numbersToShow = if (mergeDuplicate) ownNumbers + linkedNumbers else ownNumbers
+        val defaultCandidates = if (duplicateInitialized) ownNumbers + linkedNumbers else ownNumbers
+        val defaultKey = defaultCandidates.filter { it.isPrimary }
+            .map { phoneNumberComparisonKey(it.value) }.distinct().singleOrNull()
+        val visibleNumbers = numbersToShow.distinctBy { phoneNumberComparisonKey(it.value) }
+            .map { it.copy(isPrimary = phoneNumberComparisonKey(it.value) == defaultKey) }
+        fullContact!!.phoneNumbers = ArrayList(visibleNumbers)
+        val defaultNumber = fullContact!!.defaultPhoneNumber()
         binding.contactNumbersHolder.removeAllViews()
 
-        if (phoneNumbers.isNotEmpty() && showFields and SHOW_PHONE_NUMBERS_FIELD != 0) {
-            phoneNumbers.forEach { phoneNumber ->
+        if (visibleNumbers.isNotEmpty() && showFields and SHOW_PHONE_NUMBERS_FIELD != 0) {
+            visibleNumbers.forEach { phoneNumber ->
                 ItemViewPhoneNumberBinding.inflate(layoutInflater, binding.contactNumbersHolder, false).apply {
                     binding.contactNumbersHolder.addView(root)
-                    if (config.formatPhoneNumbers) {
-                        contactNumber.text = phoneNumber.value.formatPhoneNumber()
+                    contactNumber.text = phoneNumber.value
+                    val numberType = getPhoneNumberTypeText(phoneNumber.type, phoneNumber.label)
+                    contactNumberType.text = if (phoneNumber === defaultNumber) {
+                        getString(R.string.contact_default_number_type, numberType)
                     } else {
-                        contactNumber.text = phoneNumber.value
+                        numberType
                     }
-                    contactNumberType.text = getPhoneNumberTypeText(phoneNumber.type, phoneNumber.label)
                     root.copyOnLongClick(phoneNumber.value)
 
-                    root.setOnClickListener {
+                    root.background = contactCardBackground()
+                    callNumber.applyColorFilter(getProperTextColor())
+                    messageNumber.applyColorFilter(getProperTextColor())
+                    callNumber.setOnClickListener {
                         if (config.showCallConfirmation) {
                             CallConfirmationDialog(this@ViewContactActivity, phoneNumber.value) {
                                 startCallIntent(phoneNumber.value)
@@ -401,20 +465,17 @@ class ViewContactActivity : ContactActivity() {
                             startCallIntent(phoneNumber.value)
                         }
                     }
+                    messageNumber.setOnClickListener { launchSendSMSIntent(phoneNumber.value) }
 
-                    defaultToggleIcon.isVisible = phoneNumber.isPrimary
-                    defaultToggleIcon.applyColorFilter(getProperTextColor())
                 }
             }
-            binding.contactNumbersImage.beVisible()
             binding.contactNumbersHolder.beVisible()
         } else {
-            binding.contactNumbersImage.beGone()
             binding.contactNumbersHolder.beGone()
         }
 
         // make sure the Call and SMS buttons are visible if any phone number is shown
-        if (phoneNumbers.isNotEmpty()) {
+        if (visibleNumbers.isNotEmpty()) {
             binding.contactSendSms.beVisible()
             binding.contactStartCall.beVisible()
         }
@@ -607,79 +668,48 @@ class ViewContactActivity : ContactActivity() {
     }
 
     private fun setupContactSources() {
+        val showSources = showFields and SHOW_CONTACT_SOURCE_FIELD != 0
+        val sources = listOf(contact!!) + if (mergeDuplicate) duplicateContacts else emptyList()
         binding.contactSourcesHolder.removeAllViews()
-        if (showFields and SHOW_CONTACT_SOURCE_FIELD != 0) {
-            var sources = HashMap<Contact, String>()
-            sources[contact!!] = getPublicContactSourceSync(contact!!.source, contactSources)
+        binding.contactLinkedAppRows.removeAllViews()
+        val linkedApps = linkedMapOf<String, Pair<String, MutableList<Int>>>()
 
-            if (mergeDuplicate) {
-                duplicateContacts.forEach {
-                    sources[it] = getPublicContactSourceSync(it.source, contactSources)
+        sources.map { it to getPublicContactSourceSync(it.source, contactSources) }
+            .sortedBy { (_, source) -> source.lowercase(Locale.getDefault()) }
+            .forEach { (entry, source) ->
+                val packageName = linkedContactAppPackage(entry.source, source, contactSources)
+                if (packageName != null) {
+                    linkedApps.getOrPut(packageName) { source to mutableListOf() }.second.add(entry.id)
+                } else if (showSources) {
+                    val sourceRow = layoutInflater.inflate(R.layout.item_view_storage_source, binding.contactSourcesHolder, false) as TextView
+                    sourceRow.apply {
+                        val label = contactSourceLabel(source)
+                        text = label
+                        copyOnLongClick(label)
+                        setOnClickListener { launchEditContact(entry, true) }
+                    }
+                    binding.contactSourcesHolder.addView(sourceRow)
                 }
             }
 
-            if (sources.size > 1) {
-                sources = sources.toList().sortedBy { (key, value) -> value.lowercase(Locale.getDefault()) }.toMap() as LinkedHashMap<Contact, String>
+        linkedApps.forEach { (packageName, app) ->
+            val (name, contactIds) = app
+            val icon = getPackageDrawable(packageName) ?: return@forEach
+            ItemViewContactSourceBinding.inflate(layoutInflater, binding.contactLinkedAppRows, false).apply {
+                contactSource.text = name
+                contactSourceImage.setImageDrawable(icon)
+                contactSourceImage.beVisible()
+                root.setOnClickListener { showSocialActions(contactIds, packageName) }
+                contactSource.setOnClickListener { showSocialActions(contactIds, packageName) }
+                binding.contactLinkedAppRows.addView(root)
             }
-
-            for ((key, value) in sources) {
-                ItemViewContactSourceBinding.inflate(layoutInflater, binding.contactSourcesHolder, false).apply {
-                    contactSource.text = if (value == "") getString(R.string.phone_storage) else value
-                    contactSource.copyOnLongClick(value)
-                    binding.contactSourcesHolder.addView(root)
-
-                    contactSource.setOnClickListener {
-                        launchEditContact(key, true)
-                    }
-
-                    if (value.lowercase(Locale.getDefault()) == WHATSAPP) {
-                        contactSourceImage.setImageDrawable(getPackageDrawable(WHATSAPP_PACKAGE))
-                        contactSourceImage.beVisible()
-                        contactSourceImage.setOnClickListener {
-                            showSocialActions(key.id)
-                        }
-                    }
-
-                    if (value.lowercase(Locale.getDefault()) == SIGNAL) {
-                        contactSourceImage.setImageDrawable(getPackageDrawable(SIGNAL_PACKAGE))
-                        contactSourceImage.beVisible()
-                        contactSourceImage.setOnClickListener {
-                            showSocialActions(key.id)
-                        }
-                    }
-
-                    if (value.lowercase(Locale.getDefault()) == VIBER) {
-                        contactSourceImage.setImageDrawable(getPackageDrawable(VIBER_PACKAGE))
-                        contactSourceImage.beVisible()
-                        contactSourceImage.setOnClickListener {
-                            showSocialActions(key.id)
-                        }
-                    }
-
-                    if (value.lowercase(Locale.getDefault()) == TELEGRAM) {
-                        contactSourceImage.setImageDrawable(getPackageDrawable(TELEGRAM_PACKAGE))
-                        contactSourceImage.beVisible()
-                        contactSourceImage.setOnClickListener {
-                            showSocialActions(key.id)
-                        }
-                    }
-
-                    if (value.lowercase(Locale.getDefault()) == THREEMA) {
-                        contactSourceImage.setImageDrawable(getPackageDrawable(THREEMA_PACKAGE))
-                        contactSourceImage.beVisible()
-                        contactSourceImage.setOnClickListener {
-                            showSocialActions(key.id)
-                        }
-                    }
-                }
-            }
-
-            binding.contactSourceImage.beVisible()
-            binding.contactSourcesHolder.beVisible()
-        } else {
-            binding.contactSourceImage.beGone()
-            binding.contactSourcesHolder.beGone()
         }
+
+        binding.contactSources.isVisible = binding.contactSourcesHolder.childCount > 0
+        binding.contactSources.background = contactCardBackground()
+        binding.contactSourcesIcon.applyColorFilter(getProperTextColor())
+        binding.contactLinkedApps.isVisible = binding.contactLinkedAppRows.childCount > 0
+        binding.contactLinkedApps.background = contactCardBackground()
     }
 
     private fun setupNotes() {
@@ -767,12 +797,17 @@ class ViewContactActivity : ContactActivity() {
         }
     }
 
-    private fun showSocialActions(contactId: Int) {
+    private fun showSocialActions(contactIds: List<Int>, packageName: String) {
         ensureBackgroundThread {
-            val actions = getSocialActions(contactId)
+            val actions = contactIds.distinct().flatMap { getSocialActions(it) }
+                .filter { it.packageName == packageName }.distinctBy { it.dataId }
             runOnUiThread {
                 if (!isDestroyed && !isFinishing) {
-                    ChooseSocialDialog(this@ViewContactActivity, actions) { action ->
+                    if (actions.isEmpty()) {
+                        toast(R.string.no_linked_app_actions)
+                        return@runOnUiThread
+                    }
+                    ChooseSocialDialog(this@ViewContactActivity, ArrayList(actions)) { action ->
                         Intent(Intent.ACTION_VIEW).apply {
                             val uri = ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, action.dataId)
                             setDataAndType(uri, action.mimetype)
@@ -832,7 +867,7 @@ class ViewContactActivity : ContactActivity() {
     }
 
     private fun deleteContactWithMergeLogic() {
-        val addition = if (binding.contactSourcesHolder.childCount > 1 && mergeDuplicate) {
+        val addition = if (mergeDuplicate && duplicateContacts.isNotEmpty()) {
             "\n\n${getString(R.string.delete_from_all_sources)}"
         } else {
             ""

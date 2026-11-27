@@ -7,6 +7,7 @@
         android:id="@+id/save"
         android:icon="@drawable/ic_check_vector"
         android:title="@string/save"
+        app:actionLayout="@layout/action_save_contact"
         app:showAsAction="always" />
     <item
         android:id="@+id/share"

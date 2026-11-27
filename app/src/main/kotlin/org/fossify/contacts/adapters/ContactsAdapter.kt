@@ -18,6 +18,8 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePaddingRelative
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -160,7 +162,19 @@ class ContactsAdapter(
             }
         }
 
-        return createViewHolder(layout, parent)
+        return createViewHolder(layout, parent).also { holder ->
+            if ((location == LOCATION_CONTACTS_TAB || location == LOCATION_FAVORITES_TAB) && viewType == VIEW_TYPE_LIST) {
+                val row = holder.itemView
+                val spacing = row.paddingTop
+                row.updatePaddingRelative(start = spacing)
+                listOf(org.fossify.commons.R.id.item_contact_name, org.fossify.commons.R.id.item_contact_number).forEach { id ->
+                    row.findViewById<TextView>(id)?.updateLayoutParams<ConstraintLayout.LayoutParams> {
+                        marginStart = spacing
+                        goneStartMargin = 0
+                    }
+                }
+            }
+        }
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -409,12 +423,7 @@ class ContactsAdapter(
                 } else {
                     contact.phoneNumbers.firstOrNull { it.value.contains(textToHighlight) } ?: contact.phoneNumbers.firstOrNull()
                 }
-                val phoneNumberToFormat = phoneNumberToUse?.value ?: ""
-                val numberText = if (config.formatPhoneNumbers) {
-                    phoneNumberToFormat.formatPhoneNumber()
-                } else {
-                    phoneNumberToUse?.value ?: ""
-                }
+                val numberText = phoneNumberToUse?.value.orEmpty()
                 findViewById<TextView>(org.fossify.commons.R.id.item_contact_number).apply {
                     text = if (textToHighlight.isEmpty()) numberText else numberText.highlightTextPart(textToHighlight, properPrimaryColor, false, true)
                     setTextColor(textColor)

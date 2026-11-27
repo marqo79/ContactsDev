@@ -33,7 +33,10 @@ import org.fossify.contacts.helpers.AVOID_CHANGING_VISIBILITY_TAG
 import org.fossify.contacts.helpers.Config
 import org.fossify.contacts.helpers.GROUP
 import org.fossify.contacts.interfaces.RefreshContactsListener
+import java.text.Collator
 import java.util.Locale
+
+internal const val FAVORITES_SECTION_TITLE = "★"
 
 abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(context: Context, attributeSet: AttributeSet) :
     CoordinatorLayout(context, attributeSet) {
@@ -128,21 +131,17 @@ abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(c
         allContacts = contacts
         val filtered = when (this) {
             is GroupsFragment -> contacts
-            is FavoritesFragment -> {
-                val contactSources = activity!!.getVisibleContactSources()
-                val favouriteContacts = contacts
-                    .filter { it.starred == 1 && contactSources.contains(it.source) }
-
-                if (activity!!.config.isCustomOrderSelected) {
-                    sortFavourites(favouriteContacts)
-                } else {
-                    favouriteContacts
-                }
-            }
-
             else -> {
                 val contactSources = activity!!.getVisibleContactSources()
-                contacts.filter { contactSources.contains(it.source) }
+                val visibleContacts = contacts.filter { contactSources.contains(it.source) }
+                when {
+                    this is FavoritesFragment -> sortFavorites(visibleContacts.filter { it.starred == 1 })
+                    this is ContactsFragment && activity is MainActivity -> {
+                        val (favorites, others) = visibleContacts.partition { it.starred == 1 }
+                        sortFavorites(favorites) + others
+                    }
+                    else -> visibleContacts
+                }
             }
         }
 
@@ -167,17 +166,10 @@ abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(c
         }
     }
 
-    private fun sortFavourites(contacts: List<Contact>): List<Contact> {
-        val favoritesOrder = activity?.config?.favoritesContactsOrder
-        if (favoritesOrder.isNullOrEmpty()) {
-            return contacts
-        }
-
-        val orderList = Converters().jsonToStringList(favoritesOrder)
-        val map = orderList.withIndex().associate { it.value to it.index }
-
-        return contacts.sortedBy { contact ->
-            map[contact.id.toString()]
+    private fun sortFavorites(contacts: List<Contact>): List<Contact> {
+        val collator = Collator.getInstance()
+        return contacts.sortedWith { first, second ->
+            collator.compare(first.getNameToDisplay(), second.getNameToDisplay())
         }
     }
 
@@ -193,7 +185,6 @@ abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(c
                 setupContactsFavoritesAdapter(contacts)
                 contactsIgnoringSearch = (innerBinding.fragmentList.adapter as? ContactsAdapter)?.contactItems ?: listOf()
                 setupLetterFastscroller(contacts)
-                innerBinding.letterFastscrollerThumb.setupWithFastScroller(innerBinding.letterFastscroller)
             }
 
             is ContactsFragment -> {
@@ -263,29 +254,38 @@ abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(c
         }
     }
 
-    fun setupLetterFastscroller(contacts: List<Contact>) {
+    fun setupLetterFastscroller(contacts: List<Contact>, showSections: Boolean = true) {
+        if (this is FavoritesFragment) {
+            updateFavoriteSection(showSections && contacts.isNotEmpty())
+            return
+        }
+
         val sorting = context.config.sorting
-        innerBinding.letterFastscroller?.setupWithRecyclerView(innerBinding.fragmentList, { position ->
-            try {
-                val contact = contacts[position]
-                var name = when {
-                    contact.isABusinessContact() -> contact.getFullCompany()
-                    sorting and SORT_BY_SURNAME != 0 && contact.surname.isNotEmpty() -> contact.surname
-                    sorting and SORT_BY_MIDDLE_NAME != 0 && contact.middleName.isNotEmpty() -> contact.middleName
-                    sorting and SORT_BY_FIRST_NAME != 0 && contact.firstName.isNotEmpty() -> contact.firstName
-                    context.config.startNameWithSurname -> contact.surname
-                    else -> contact.firstName
-                }
-
-                if (name.isEmpty()) {
-                    name = contact.getNameToDisplay()
-                }
-
-                val character = if (name.isNotEmpty()) name.substring(0, 1) else ""
-                FastScrollItemIndicator.Text(character.normalizeString().uppercase(Locale.getDefault()))
-            } catch (e: Exception) {
-                FastScrollItemIndicator.Text("")
+        val startNameWithSurname = context.config.startNameWithSurname
+        val locale = Locale.getDefault()
+        val labels = contacts.map { contact ->
+            if (showSections && activity is MainActivity && this is ContactsFragment && contact.starred == 1) {
+                return@map FAVORITES_SECTION_TITLE
             }
+
+            val name = when {
+                contact.isABusinessContact() -> contact.getFullCompany()
+                sorting and SORT_BY_SURNAME != 0 && contact.surname.isNotEmpty() -> contact.surname
+                sorting and SORT_BY_MIDDLE_NAME != 0 && contact.middleName.isNotEmpty() -> contact.middleName
+                sorting and SORT_BY_FIRST_NAME != 0 && contact.firstName.isNotEmpty() -> contact.firstName
+                sorting and SORT_BY_FULL_NAME != 0 -> contact.getNameToDisplay()
+                startNameWithSurname -> contact.surname
+                else -> contact.firstName
+            }
+            name.ifEmpty { contact.getNameToDisplay() }.take(1).normalizeString().uppercase(locale)
+        }
+
+        if (this is ContactsFragment) {
+            val sortByName = sorting and (SORT_BY_FIRST_NAME or SORT_BY_MIDDLE_NAME or SORT_BY_SURNAME or SORT_BY_FULL_NAME) != 0
+            updateContactSections(if (showSections) labels else emptyList(), sortByName)
+        }
+        innerBinding.letterFastscroller?.setupWithRecyclerView(innerBinding.fragmentList, { position ->
+            FastScrollItemIndicator.Text(labels.getOrNull(position).orEmpty())
         })
     }
 
@@ -340,7 +340,7 @@ abstract class MyViewPagerFragment<Binding : MyViewPagerFragment.InnerBinding>(c
 
             innerBinding.fragmentPlaceholder.beVisibleIf(filtered.isEmpty())
             adapter.updateItems(filtered, fixedText.normalizeString())
-            setupLetterFastscroller(filtered)
+            setupLetterFastscroller(filtered, showSections = fixedText.isEmpty())
         } else if (adapter is GroupsAdapter) {
             val filtered = groupsIgnoringSearch.filter {
                 it.title.contains(fixedText, true)

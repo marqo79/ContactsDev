@@ -2,12 +2,11 @@ package org.fossify.contacts.activities
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.ColorDrawable
+import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.ContactsContract.CommonDataKinds.BaseTypes
@@ -15,8 +14,12 @@ import android.provider.ContactsContract.CommonDataKinds.Email
 import android.provider.ContactsContract.CommonDataKinds.Event
 import android.provider.ContactsContract.CommonDataKinds.Im
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal
+import android.telephony.PhoneNumberUtils
+import android.telephony.TelephonyManager
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.drawable.toDrawable
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
@@ -25,25 +28,25 @@ import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.Target
+import com.google.android.material.appbar.MaterialToolbar
 import org.fossify.commons.dialogs.ConfirmationDialog
 import org.fossify.commons.dialogs.RadioGroupDialog
-import org.fossify.commons.extensions.beGone
-import org.fossify.commons.extensions.beVisible
-import org.fossify.commons.extensions.getContrastColor
-import org.fossify.commons.extensions.getNameLetter
 import org.fossify.commons.extensions.getProperBackgroundColor
+import org.fossify.commons.extensions.getProperTextColor
 import org.fossify.commons.extensions.insetsController
 import org.fossify.commons.extensions.launchSendSMSIntent
-import org.fossify.commons.extensions.realScreenSize
+import org.fossify.commons.extensions.normalizePhoneNumber
 import org.fossify.commons.extensions.sendEmailIntent
 import org.fossify.commons.extensions.setNavigationBarAppearance
 import org.fossify.commons.extensions.showErrorToast
 import org.fossify.commons.helpers.ContactsHelper
-import org.fossify.commons.helpers.letterBackgroundColors
+import org.fossify.commons.helpers.SimpleContactsHelper
 import org.fossify.commons.models.RadioItem
 import org.fossify.commons.models.contacts.Contact
 import org.fossify.contacts.R
+import org.fossify.contacts.extensions.defaultPhoneNumber
 import org.fossify.contacts.extensions.shareContacts
+import java.util.Locale
 
 abstract class ContactActivity : SimpleActivity() {
     companion object {
@@ -54,11 +57,43 @@ abstract class ContactActivity : SimpleActivity() {
     protected var contact: Contact? = null
     protected var originalRingtone: String? = null
     protected var currentContactPhotoPath = ""
+    private val phoneNumberRegion by lazy {
+        val simCountry = runCatching { getSystemService(TelephonyManager::class.java)?.simCountryIso }.getOrNull()
+        simCountry.orEmpty().ifBlank { Locale.getDefault().country }.uppercase(Locale.ROOT)
+    }
+
+    protected fun phoneNumberComparisonKey(value: String): String {
+        if (phoneNumberRegion.isNotEmpty() && value.all { it.isDigit() || it.isWhitespace() || it in "+()./-" }) {
+            PhoneNumberUtils.formatNumberToE164(value, phoneNumberRegion)?.let { return it }
+        }
+        return value.normalizePhoneNumber().ifEmpty { value }
+    }
 
     override fun onResume() {
         super.onResume()
-        window.insetsController().isAppearanceLightStatusBars = false
+        window.insetsController().isAppearanceLightStatusBars = ColorUtils.calculateLuminance(getProperBackgroundColor()) > 0.5
         window.setNavigationBarAppearance(getProperBackgroundColor())
+    }
+
+    protected fun setupContactToolbarColors(toolbar: MaterialToolbar) {
+        val textColor = getProperTextColor()
+        toolbar.setNavigationIconTint(textColor)
+        toolbar.overflowIcon = toolbar.overflowIcon?.mutate()?.apply { setTint(textColor) }
+        val tint = ColorStateList.valueOf(textColor)
+        for (index in 0 until toolbar.menu.size()) {
+            toolbar.menu.getItem(index).iconTintList = tint
+        }
+    }
+
+    protected fun contactCardBackground(strokeColor: Int = ColorUtils.setAlphaComponent(getProperTextColor(), 28)): GradientDrawable {
+        val background = getProperBackgroundColor()
+        val light = ColorUtils.calculateLuminance(background) > 0.5
+        val density = resources.displayMetrics.density
+        return GradientDrawable().apply {
+            cornerRadius = 12 * density
+            setColor(ColorUtils.blendARGB(background, Color.WHITE, if (light) 0.72f else 0.08f))
+            setStroke(density.toInt().coerceAtLeast(1), strokeColor)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
@@ -82,14 +117,16 @@ abstract class ContactActivity : SimpleActivity() {
 
     abstract fun systemRingtoneSelected(uri: Uri?)
 
+    protected fun getContactAvatarPlaceholder(): Drawable =
+        SimpleContactsHelper(this).getContactLetterIcon(contact?.getNameToDisplay().orEmpty()).toDrawable(resources)
+
     fun showPhotoPlaceholder(photoView: ImageView) {
-        val placeholder = BitmapDrawable(resources, getBigLetterPlaceholder(contact?.getNameToDisplay() ?: "A"))
-        photoView.setImageDrawable(placeholder)
+        photoView.setImageDrawable(getContactAvatarPlaceholder())
         currentContactPhotoPath = ""
         contact?.photo = null
     }
 
-    fun updateContactPhoto(path: String, photoView: ImageView, bottomShadow: ImageView, bitmap: Bitmap? = null) {
+    fun updateContactPhoto(path: String, photoView: ImageView, bitmap: Bitmap? = null) {
         currentContactPhotoPath = path
 
         if (isDestroyed || isFinishing) {
@@ -100,14 +137,13 @@ abstract class ContactActivity : SimpleActivity() {
             .diskCacheStrategy(DiskCacheStrategy.RESOURCE)
             .centerCrop()
 
-        val wantedWidth = realScreenSize.x
-        val wantedHeight = resources.getDimension(R.dimen.top_contact_image_height).toInt()
+        val avatarSize = resources.getDimensionPixelSize(R.dimen.contact_header_avatar_size)
 
         Glide.with(this)
             .load(bitmap ?: path)
             .transition(DrawableTransitionOptions.withCrossFade())
             .apply(options)
-            .override(wantedWidth, wantedHeight)
+            .override(avatarSize, avatarSize)
             .listener(object : RequestListener<Drawable> {
                 override fun onResourceReady(
                     resource: Drawable,
@@ -116,14 +152,11 @@ abstract class ContactActivity : SimpleActivity() {
                     dataSource: DataSource,
                     isFirstResource: Boolean
                 ): Boolean {
-                    photoView.background = ColorDrawable(0)
-                    bottomShadow.beVisible()
                     return false
                 }
 
                 override fun onLoadFailed(e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean): Boolean {
                     showPhotoPlaceholder(photoView)
-                    bottomShadow.beGone()
                     return true
                 }
             }).into(photoView)
@@ -143,25 +176,8 @@ abstract class ContactActivity : SimpleActivity() {
         shareContacts(arrayListOf(contact))
     }
 
-    fun trySendSMS() {
-        val numbers = contact!!.phoneNumbers
-        if (numbers.size == 1) {
-            launchSendSMSIntent(numbers.first().value)
-        } else if (numbers.size > 1) {
-            val primaryNumber = numbers.find { it.isPrimary }
-            if (primaryNumber != null) {
-                launchSendSMSIntent(primaryNumber.value)
-            } else {
-                val items = ArrayList<RadioItem>()
-                numbers.forEachIndexed { index, phoneNumber ->
-                    items.add(RadioItem(index, phoneNumber.value, phoneNumber.value))
-                }
-
-                RadioGroupDialog(this, items) {
-                    launchSendSMSIntent(it as String)
-                }
-            }
-        }
+    fun trySendSMS(recipient: Contact? = contact) {
+        recipient?.defaultPhoneNumber()?.let { launchSendSMSIntent(it.value) }
     }
 
     fun trySendEmail() {
@@ -232,38 +248,6 @@ abstract class ContactActivity : SimpleActivity() {
         Event.TYPE_ANNIVERSARY -> org.fossify.commons.R.string.anniversary
         Event.TYPE_BIRTHDAY -> org.fossify.commons.R.string.birthday
         else -> org.fossify.commons.R.string.other
-    }
-
-    private fun getBigLetterPlaceholder(name: String): Bitmap {
-        val letter = name.getNameLetter()
-        val height = resources.getDimension(R.dimen.top_contact_image_height).toInt()
-        val bitmap = Bitmap.createBitmap(realScreenSize.x, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val view = TextView(this)
-        view.layout(0, 0, bitmap.width, bitmap.height)
-
-        val circlePaint = Paint().apply {
-            color = letterBackgroundColors[Math.abs(name.hashCode()) % letterBackgroundColors.size].toInt()
-            isAntiAlias = true
-            style = Paint.Style.FILL
-        }
-
-        val wantedTextSize = bitmap.height / 2f
-        val textPaint = Paint().apply {
-            color = circlePaint.color.getContrastColor()
-            isAntiAlias = true
-            textAlign = Paint.Align.CENTER
-            textSize = wantedTextSize
-            style = Paint.Style.FILL
-        }
-
-        canvas.drawPaint(circlePaint)
-
-        val xPos = canvas.width / 2f
-        val yPos = canvas.height / 2 - (textPaint.descent() + textPaint.ascent()) / 2
-        canvas.drawText(letter, xPos, yPos, textPaint)
-        view.draw(canvas)
-        return bitmap
     }
 
     protected fun getDefaultRingtoneUri() = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)

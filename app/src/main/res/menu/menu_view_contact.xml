@@ -19,6 +19,16 @@
         android:title="@string/delete"
         app:showAsAction="always" />
     <item
+        android:id="@+id/block_contact_numbers"
+        android:title="@string/block_contact_numbers"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/unblock_contact_numbers"
+        android:title="@string/unblock_contact_numbers"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/open_with"
         android:showAsAction="never"
         android:title="@string/open_with"

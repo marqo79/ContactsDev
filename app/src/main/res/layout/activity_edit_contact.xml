@@ -10,6 +10,7 @@
         android:id="@+id/contact_scrollview"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_below="@id/contact_appbar"
         android:clipToPadding="false"
         android:scrollbars="none"
         android:visibility="gone"
@@ -20,59 +21,47 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <ImageView
+            <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/contact_photo"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/top_contact_image_height"
-                android:layout_marginBottom="@dimen/normal_margin"
+                android:layout_width="@dimen/contact_header_avatar_size"
+                android:layout_height="@dimen/contact_header_avatar_size"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="@dimen/contact_header_avatar_margin_top"
+                android:layout_marginBottom="@dimen/contact_header_avatar_margin_bottom"
                 android:contentDescription="@string/change_photo"
                 android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/roundedImageView"
                 tools:src="@drawable/ic_person_vector" />
-
-            <ImageView
-                android:id="@+id/contact_photo_bottom_shadow"
-                android:layout_width="match_parent"
-                android:layout_height="@dimen/top_shadow_height"
-                android:layout_alignBottom="@+id/contact_photo"
-                android:background="@drawable/gradient_background"
-                android:contentDescription="@null" />
 
             <ImageView
                 android:id="@+id/contact_toggle_favorite"
                 android:layout_width="@dimen/contact_actions_size"
                 android:layout_height="@dimen/contact_actions_size"
-                android:layout_alignStart="@+id/contact_photo"
+                android:layout_toStartOf="@id/contact_photo"
                 android:layout_alignBottom="@id/contact_photo"
-                android:layout_marginStart="@dimen/medium_margin"
-                android:layout_marginBottom="@dimen/medium_margin"
+                android:layout_marginEnd="8dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/toggle_favorite"
-                android:padding="@dimen/tiny_margin"
+                android:padding="13dp"
                 android:src="@drawable/ic_star_outline_vector" />
 
             <ImageView
                 android:id="@+id/contact_change_photo"
                 android:layout_width="@dimen/contact_actions_size"
                 android:layout_height="@dimen/contact_actions_size"
-                android:layout_alignEnd="@+id/contact_photo"
+                android:layout_toEndOf="@id/contact_photo"
                 android:layout_alignBottom="@+id/contact_photo"
-                android:layout_marginEnd="@dimen/medium_margin"
-                android:layout_marginBottom="@dimen/medium_margin"
+                android:layout_marginStart="8dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/change_photo"
-                android:padding="@dimen/small_margin"
+                android:padding="13dp"
                 android:src="@drawable/ic_camera_vector" />
 
             <ImageView
                 android:id="@+id/contact_name_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_below="@+id/contact_photo"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_person_vector" />
 
             <org.fossify.commons.views.MyEditText
@@ -182,14 +171,9 @@
 
             <ImageView
                 android:id="@+id/contact_numbers_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_numbers_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_phone_vector" />
 
             <LinearLayout
@@ -205,30 +189,18 @@
 
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_numbers_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_numbers_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginBottom="@dimen/medium_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_numbers_holder"
+                android:layout_alignStart="@id/contact_numbers_holder"
+                android:text="@string/edit_add_phone_number" />
 
             <ImageView
                 android:id="@+id/contact_emails_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_emails_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_mail_vector" />
 
             <LinearLayout
@@ -238,35 +210,20 @@
                 android:layout_below="@+id/contact_numbers_add_new"
                 android:layout_toEndOf="@+id/contact_name_image"
                 android:orientation="vertical">
-
-                <include layout="@layout/item_edit_email" />
-
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_emails_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_emails_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_emails_holder"
+                android:layout_alignStart="@id/contact_emails_holder"
+                android:text="@string/edit_add_email" />
 
             <ImageView
                 android:id="@+id/contact_addresses_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_addresses_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_place_vector" />
 
             <LinearLayout
@@ -280,30 +237,18 @@
 
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_addresses_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_addresses_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_addresses_holder"
+                android:layout_alignStart="@id/contact_addresses_holder"
+                android:text="@string/edit_add_address" />
 
             <ImageView
                 android:id="@+id/contact_ims_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_ims_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_im" />
 
             <LinearLayout
@@ -314,35 +259,20 @@
                 android:layout_marginTop="@dimen/medium_margin"
                 android:layout_toEndOf="@+id/contact_name_image"
                 android:orientation="vertical">
-
-                <include layout="@layout/item_edit_im" />
-
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_ims_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_ims_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_ims_holder"
+                android:layout_alignStart="@id/contact_ims_holder"
+                android:text="@string/edit_add_messenger" />
 
             <ImageView
                 android:id="@+id/contact_events_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_events_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_cake_vector" />
 
             <LinearLayout
@@ -353,35 +283,20 @@
                 android:layout_marginTop="@dimen/medium_margin"
                 android:layout_toEndOf="@+id/contact_name_image"
                 android:orientation="vertical">
-
-                <include layout="@layout/item_event" />
-
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_events_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_events_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_events_holder"
+                android:layout_alignStart="@id/contact_events_holder"
+                android:text="@string/edit_add_event" />
 
             <ImageView
                 android:id="@+id/contact_notes_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_notes"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_label_vector" />
 
             <org.fossify.commons.views.MyEditText
@@ -400,14 +315,9 @@
 
             <ImageView
                 android:id="@+id/contact_ringtone_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_ringtone"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/medium_margin"
                 android:src="@drawable/ic_bell_vector" />
 
             <org.fossify.commons.views.MyTextView
@@ -426,14 +336,9 @@
 
             <ImageView
                 android:id="@+id/contact_organization_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_organization_company"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_business_vector" />
 
             <org.fossify.commons.views.MyEditText
@@ -470,14 +375,9 @@
 
             <ImageView
                 android:id="@+id/contact_websites_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_websites_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_link_vector" />
 
             <LinearLayout
@@ -488,35 +388,20 @@
                 android:layout_marginTop="@dimen/medium_margin"
                 android:layout_toEndOf="@+id/contact_name_image"
                 android:orientation="vertical">
-
-                <include layout="@layout/item_edit_website" />
-
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_websites_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_websites_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_websites_holder"
+                android:layout_alignStart="@id/contact_websites_holder"
+                android:text="@string/edit_add_website" />
 
             <ImageView
                 android:id="@+id/contact_groups_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_groups_holder"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_people_vector" />
 
             <LinearLayout
@@ -532,30 +417,18 @@
 
             </LinearLayout>
 
-            <ImageView
+            <org.fossify.commons.views.MyTextView
                 android:id="@+id/contact_groups_add_new"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/contact_groups_holder"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="@dimen/small_margin"
-                android:background="@drawable/button_background"
-                android:paddingStart="@dimen/activity_margin"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/activity_margin"
-                android:paddingBottom="@dimen/medium_margin"
-                android:src="@drawable/ic_plus_vector" />
+                style="@style/ContactEditAddAction"
+                android:layout_below="@id/contact_groups_holder"
+                android:layout_alignStart="@id/contact_groups_holder"
+                android:text="@string/edit_choose_groups" />
 
             <ImageView
                 android:id="@+id/contact_source_image"
-                android:layout_width="@dimen/contact_icons_size"
-                android:layout_height="@dimen/contact_icons_size"
+                style="@style/ContactEditFieldIcon"
                 android:layout_alignTop="@+id/contact_source"
-                android:layout_marginStart="@dimen/normal_margin"
                 android:contentDescription="@null"
-                android:paddingTop="@dimen/medium_margin"
-                android:paddingEnd="@dimen/small_margin"
-                android:paddingBottom="@dimen/small_margin"
                 android:src="@drawable/ic_account_box_vector" />
 
             <org.fossify.commons.views.MyTextView
@@ -577,16 +450,20 @@
                 android:textSize="@dimen/bigger_text_size"
                 tools:text="hello@fossify.org" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/contact_save_bottom"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/contact_source"
+                android:layout_marginHorizontal="@dimen/activity_margin"
+                android:layout_marginVertical="@dimen/activity_margin"
+                android:minHeight="48dp"
+                android:text="@string/save"
+                android:textAllCaps="false"
+                app:cornerRadius="12dp" />
+
         </RelativeLayout>
     </ScrollView>
-
-    <ImageView
-        android:id="@+id/contact_photo_top_shadow"
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/top_shadow_height"
-        android:layout_alignParentTop="true"
-        android:background="@drawable/gradient_background_flipped"
-        android:contentDescription="@null" />
 
     <org.fossify.commons.views.MyAppBarLayout
         android:id="@+id/contact_appbar"
