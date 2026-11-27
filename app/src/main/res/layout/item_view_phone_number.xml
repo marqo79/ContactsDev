@@ -28,29 +28,25 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:alpha="0.75"
-            android:textSize="@dimen/list_secondary_text_size" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <ImageView
         android:id="@+id/call_number"
-        android:layout_width="@dimen/contact_actions_size"
-        android:layout_height="@dimen/contact_actions_size"
+        android:layout_width="@dimen/contact_view_number_action_size"
+        android:layout_height="@dimen/contact_view_number_action_size"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/call_contact"
-        android:paddingStart="14dp"
-        android:paddingEnd="6dp"
-        android:paddingVertical="10dp"
+        android:padding="8dp"
         android:src="@drawable/ic_phone_vector" />
 
     <ImageView
         android:id="@+id/message_number"
-        android:layout_width="@dimen/contact_actions_size"
-        android:layout_height="@dimen/contact_actions_size"
+        android:layout_width="@dimen/contact_view_number_action_size"
+        android:layout_height="@dimen/contact_view_number_action_size"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/send_sms"
-        android:paddingStart="6dp"
-        android:paddingEnd="14dp"
-        android:paddingVertical="10dp"
+        android:padding="8dp"
         android:src="@drawable/ic_sms_vector" />
 
 </LinearLayout>

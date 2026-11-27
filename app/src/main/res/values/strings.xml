@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="contact_call_history_title">Call history (%1$d)</string>
+    <string name="contact_call_history_more">Show older calls</string>
+    <string name="contact_call_incoming">Incoming call</string>
+    <string name="contact_call_outgoing">Outgoing call</string>
+    <string name="contact_call_missed">Missed call</string>
+    <string name="contact_call_rejected">Declined call</string>
+    <string name="contact_call_blocked">Blocked call</string>
+    <string name="contact_call_other">Call</string>
     <string name="edit_duplicate_phone_number">This number is already on the contact.</string>
     <string name="edit_set_default_number">Set as default phone number</string>
     <string name="edit_default_number">Default phone number</string>

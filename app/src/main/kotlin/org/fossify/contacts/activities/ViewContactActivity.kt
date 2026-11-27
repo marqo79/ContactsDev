@@ -7,7 +7,10 @@ import android.media.AudioManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
+import android.provider.CallLog.Calls
 import android.provider.ContactsContract
+import android.text.format.DateFormat
+import android.text.format.DateUtils
 import android.view.View
 import android.view.WindowManager
 import android.widget.RelativeLayout
@@ -30,6 +33,7 @@ import org.fossify.contacts.dialogs.ManageVisibleFieldsDialog
 import org.fossify.contacts.extensions.*
 import org.fossify.contacts.helpers.*
 import java.util.Locale
+import java.util.Date
 
 class ViewContactActivity : ContactActivity() {
     private var isViewIntent = false
@@ -40,6 +44,7 @@ class ViewContactActivity : ContactActivity() {
     private var fullContact: Contact? = null    // contact with all fields filled from duplicates
     private var duplicateInitialized = false
     private var blockingRequest = 0
+    private var callHistoryRequest = 0
     private var updatingBlockedNumbers = false
     private val mergeDuplicate: Boolean get() = config.mergeDuplicateContacts
     private val binding by viewBinding(ActivityViewContactBinding::inflate)
@@ -285,6 +290,7 @@ class ViewContactActivity : ContactActivity() {
         }
 
         setupPhoneNumbers()
+        loadCallHistory(0)
         refreshContactBlocking()
         setupEmails()
         setupAddresses()
@@ -299,18 +305,21 @@ class ViewContactActivity : ContactActivity() {
         updateTextColors(binding.contactScrollview)
     }
 
-    private fun contactNumbersForBlocking() =
+    private fun contactNumbers() =
         fullContact?.phoneNumbers.orEmpty().map { it.value.trim() }.filter { it.isNotEmpty() }.distinct()
 
-    private fun requestBlockedNumbers(method: String, numbers: List<String>): Int? {
+    private fun requestPhoneData(method: String, numbers: List<String>, offset: Int = 0): Bundle? {
         val dialer = telecomManager.defaultDialerPackage
         if (dialer != "org.fossify.phone" && dialer != "org.fossify.phone.dev") {
             return null
         }
 
         return try {
-            val extras = Bundle().apply { putStringArrayList("numbers", ArrayList(numbers)) }
-            contentResolver.call(Uri.parse("content://$dialer.contactblocking"), method, null, extras)?.getInt("blocked")
+            val extras = Bundle().apply {
+                putStringArrayList("numbers", ArrayList(numbers))
+                putInt("offset", offset)
+            }
+            contentResolver.call(Uri.parse("content://$dialer.contactblocking"), method, null, extras)
         } catch (_: SecurityException) {
             null
         } catch (_: IllegalArgumentException) {
@@ -318,9 +327,88 @@ class ViewContactActivity : ContactActivity() {
         }
     }
 
+    private fun requestBlockedNumbers(method: String, numbers: List<String>): Int? =
+        requestPhoneData(method, numbers)?.getInt("blocked")
+
+    private fun loadCallHistory(offset: Int) {
+        val request = ++callHistoryRequest
+        val numbers = contactNumbers()
+        if (offset == 0) binding.contactCallHistory.isVisible = false
+        if (numbers.isEmpty()) return
+
+        binding.contactCallHistoryMore.isEnabled = false
+        ensureBackgroundThread {
+            val result = requestPhoneData("call_history", numbers, offset)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && request == callHistoryRequest) {
+                    binding.contactCallHistoryMore.isEnabled = true
+                    if (result?.containsKey("total") == true) showCallHistory(result, offset)
+                }
+            }
+        }
+    }
+
+    private fun showCallHistory(result: Bundle, offset: Int) {
+        val dates = result.getLongArray("dates") ?: return
+        val durations = result.getLongArray("durations") ?: return
+        val types = result.getIntArray("types") ?: return
+        val simNames = result.getStringArrayList("sim_names").orEmpty()
+        val simColors = result.getIntArray("sim_colors")
+        val total = result.getInt("total")
+        val textColor = getProperTextColor()
+        val backgroundColor = getProperBackgroundColor()
+        val dateFormat = DateFormat.getDateFormat(this)
+        val timeFormat = DateFormat.getTimeFormat(this)
+        binding.contactCallHistory.apply {
+            background = contactCardBackground()
+            isVisible = true
+        }
+        binding.contactCallHistoryTitle.apply {
+            text = getString(R.string.contact_call_history_title, total)
+            setTextColor(textColor)
+        }
+        val rows = binding.contactCallHistoryRows
+        if (offset == 0) rows.removeAllViews()
+        dates.forEachIndexed { index, timestamp ->
+            val date = Date(timestamp)
+            val (icon, label, color) = when (types[index]) {
+                Calls.INCOMING_TYPE -> Triple(R.drawable.ic_call_received_vector, R.string.contact_call_incoming, 0xFF1565C0.toInt())
+                Calls.OUTGOING_TYPE -> Triple(R.drawable.ic_call_made_vector, R.string.contact_call_outgoing, 0xFF2E7D32.toInt())
+                Calls.MISSED_TYPE -> Triple(R.drawable.ic_call_missed_vector, R.string.contact_call_missed, 0xFFC62828.toInt())
+                Calls.REJECTED_TYPE -> Triple(R.drawable.ic_call_missed_vector, R.string.contact_call_rejected, 0xFFC62828.toInt())
+                Calls.BLOCKED_TYPE -> Triple(R.drawable.ic_call_missed_vector, R.string.contact_call_blocked, 0xFFC62828.toInt())
+                else -> Triple(org.fossify.commons.R.drawable.ic_phone_vector, R.string.contact_call_other, textColor)
+            }
+            val simName = simNames.getOrNull(index).orEmpty()
+            val simColor = simColors?.getOrNull(index)?.takeIf { android.graphics.Color.alpha(it) == 255 } ?: textColor
+            val duration = durations[index].takeIf { it > 0 }?.let { DateUtils.formatElapsedTime(it) }.orEmpty()
+            ItemContactCallHistoryBinding.inflate(layoutInflater, rows, false).apply {
+                callDirection.setImageResource(icon)
+                callDirection.applyColorFilter(color.adjustForContrast(backgroundColor))
+                callDirection.contentDescription = getString(label)
+                callDateTime.text = "${dateFormat.format(date)}, ${timeFormat.format(date)}"
+                callDateTime.setTextColor(textColor)
+                callSim.text = simName
+                callSim.setTextColor(simColor.adjustForContrast(backgroundColor))
+                callSim.isVisible = simName.isNotEmpty()
+                callDuration.text = if (simName.isEmpty()) duration else " • $duration"
+                callDuration.setTextColor(textColor)
+                callDuration.isVisible = duration.isNotEmpty()
+                callMetadata.isVisible = callSim.isVisible || callDuration.isVisible
+                rows.addView(root)
+            }
+        }
+        val nextOffset = offset + dates.size
+        binding.contactCallHistoryMore.apply {
+            isVisible = dates.isNotEmpty() && nextOffset < total
+            setTextColor(textColor)
+            setOnClickListener { loadCallHistory(nextOffset) }
+        }
+    }
+
     private fun refreshContactBlocking() {
         if (updatingBlockedNumbers) return
-        val numbers = contactNumbersForBlocking()
+        val numbers = contactNumbers()
         val request = ++blockingRequest
         if (numbers.isEmpty()) {
             showContactBlocking(0, 0)
@@ -349,7 +437,7 @@ class ViewContactActivity : ContactActivity() {
     }
 
     private fun confirmContactBlocking(block: Boolean) {
-        val numbers = contactNumbersForBlocking()
+        val numbers = contactNumbers()
         if (numbers.isEmpty() || updatingBlockedNumbers) return
         val message = if (block) R.string.block_contact_numbers_confirmation else R.string.unblock_contact_numbers_confirmation
         ConfirmationDialog(this, getString(message)) {

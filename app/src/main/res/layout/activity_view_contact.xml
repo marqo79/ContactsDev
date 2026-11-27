@@ -41,8 +41,8 @@
 
                 <ImageView
                     android:id="@+id/contact_start_call"
-                    android:layout_width="@dimen/contact_actions_size"
-                    android:layout_height="@dimen/contact_actions_size"
+                    android:layout_width="@dimen/contact_view_header_action_size"
+                    android:layout_height="@dimen/contact_view_header_action_size"
                     android:adjustViewBounds="true"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/call_contact"
@@ -52,8 +52,8 @@
 
                 <ImageView
                     android:id="@+id/contact_send_sms"
-                    android:layout_width="@dimen/contact_actions_size"
-                    android:layout_height="@dimen/contact_actions_size"
+                    android:layout_width="@dimen/contact_view_header_action_size"
+                    android:layout_height="@dimen/contact_view_header_action_size"
                     android:adjustViewBounds="true"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/send_sms"
@@ -63,8 +63,8 @@
 
                 <ImageView
                     android:id="@+id/contact_send_email"
-                    android:layout_width="@dimen/contact_actions_size"
-                    android:layout_height="@dimen/contact_actions_size"
+                    android:layout_width="@dimen/contact_view_header_action_size"
+                    android:layout_height="@dimen/contact_view_header_action_size"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/send_email"
                     android:padding="12dp"
@@ -72,8 +72,8 @@
 
                 <ImageView
                     android:id="@+id/contact_toggle_favorite"
-                    android:layout_width="@dimen/contact_actions_size"
-                    android:layout_height="@dimen/contact_actions_size"
+                    android:layout_width="@dimen/contact_view_header_action_size"
+                    android:layout_height="@dimen/contact_view_header_action_size"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/toggle_favorite"
                     android:padding="9dp"
@@ -248,10 +248,43 @@
                 android:visibility="gone" />
 
             <LinearLayout
-                android:id="@+id/contact_linked_apps"
+                android:id="@+id/contact_call_history"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_below="@id/contact_numbers_holder"
+                android:layout_marginHorizontal="@dimen/activity_margin"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/contact_call_history_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/contact_call_history_rows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+                <org.fossify.commons.views.MyTextView
+                    android:id="@+id/contact_call_history_more"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="48dp"
+                    android:text="@string/contact_call_history_more"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/contact_linked_apps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/contact_call_history"
                 android:layout_marginHorizontal="@dimen/activity_margin"
                 android:orientation="vertical"
                 android:visibility="gone">
